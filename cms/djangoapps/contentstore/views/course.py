@@ -747,8 +747,11 @@ def create_textbook(request, tag=None, course_id=None, branch=None, version_guid
     course_module.save()
     store.update_metadata(course_module.location, own_metadata(course_module))
     resp = JsonResponse(textbook, status=201)
-    resp["Location"] = course_locator.url_reverse('/textbooks/{tid}'.format(
-        tid=textbook['id']))
+    url = course_locator.url_reverse('textbooks')
+    if not url.endswith("/"):
+        url += "/"
+    url += str(textbook["id"])
+    resp["Location"] = url
     return resp
 
 
