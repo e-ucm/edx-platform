@@ -53,7 +53,6 @@ class LTIModuleTest(LogicTest):
                 </imsx_POXEnvelopeRequest>
             """)
         self.system.get_real_user = Mock()
-        #self.xmodule.get_client_key_secret = Mock(return_value=('key', 'secret'))
         self.system.publish = Mock()
 
         self.user_id = self.xmodule.runtime.anonymous_student_id
@@ -258,8 +257,7 @@ class LTIModuleTest(LogicTest):
         #this adds lti passports to system
         mocked_course = Mock(lti_passports = ['lti_id:test_client:test_secret'])
         modulestore = Mock()
-        attrs={'get_item.return_value':mocked_course}
-        modulestore.configure_mock(**attrs)
+        modulestore.get_item.return_value = mocked_course
         runtime = Mock(modulestore=modulestore)
         self.xmodule.descriptor.runtime = runtime
         self.xmodule.lti_id = "lti_id"
@@ -302,7 +300,8 @@ class LTIModuleTest(LogicTest):
         runtime = Mock(modulestore=modulestore)
         self.xmodule.descriptor.runtime = runtime
         self.xmodule.lti_id = 'lti_id'
-        self.assertRaises(LTIError, self.xmodule.get_client_key_secret)
+        with self.assertRaises(LTIError):
+            self.xmodule.get_client_key_secret()
 
     @patch('xmodule.lti_module.LTIModule.get_client_key_secret', return_value=('test_client_key', u'test_client_secret'))
     def test_successful_verify_oauth_body_sign(self, get_key_secret):
@@ -320,10 +319,9 @@ class LTIModuleTest(LogicTest):
         """
         with patch('xmodule.lti_module.signature.verify_hmac_sha1') as mocked_verify:
             mocked_verify.return_value = False
-            self.assertRaises(LTIError,
-                self.xmodule.verify_oauth_body_sign,
-                self.get_signed_mock_request()
-            )
+            with self.assertRaises(LTIError):
+                req = self.get_signed_mock_request()
+                self.xmodule.verify_oauth_body_sign(req)
 
     def get_signed_mock_request(self):
         """
