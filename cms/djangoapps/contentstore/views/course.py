@@ -57,8 +57,7 @@ __all__ = ['course_info_handler', 'course_handler', 'course_info_update_handler'
            'settings_handler',
            'grading_handler',
            'advanced_settings_handler',
-           'textbooks_list_handler', 'textbooks_detail_handler',
-           'create_textbook']
+           'textbooks_list_handler', 'textbooks_detail_handler']
 
 
 # pylint: disable=unused-argument
@@ -657,14 +656,20 @@ def assign_textbook_id(textbook, used_ids=()):
     return tid
 
 
-@require_http_methods(("GET", "POST"))
+@require_http_methods(("GET", "POST", "PUT"))
 @login_required
 @ensure_csrf_cookie
 def textbooks_list_handler(request, tag=None, course_id=None, branch=None, version_guid=None, block=None):
     """
-    Display an editable textbook overview.
+    A RESTful handler for textbook collections.
 
-    org, course, name: Attributes of the Location for the item to edit
+    GET
+        html: return textbook list page (Backbone application)
+        json: return JSON representation of all textbooks in this course
+    POST
+        json: create a new textbook for this course
+    PUT
+        json: overwrite all textbooks in the course with the given list
     """
     course_locator = BlockUsageLocator(course_id=course_id, branch=branch, version_guid=version_guid, usage_id=block)
     if not has_access(request.user, course_locator):
@@ -674,35 +679,8 @@ def textbooks_list_handler(request, tag=None, course_id=None, branch=None, versi
     store = get_modulestore(course_location)
     course_module = store.get_item(course_location, depth=3)
 
-    if "application/json" in request.META.get('HTTP_ACCEPT', 'text/html'):
-        if request.method == 'GET':
-            return JsonResponse(course_module.pdf_textbooks)
-        # can be either and sometimes django is rewriting one to the other:
-        elif request.method in ('POST', 'PUT'):
-            try:
-                textbooks = validate_textbooks_json(request.body)
-            except TextbookValidationError as err:
-                return JsonResponse({"error": err.message}, status=400)
-
-            tids = set(t["id"] for t in textbooks if "id" in t)
-            for textbook in textbooks:
-                if not "id" in textbook:
-                    tid = assign_textbook_id(textbook, tids)
-                    textbook["id"] = tid
-                    tids.add(tid)
-
-            if not any(tab['type'] == 'pdf_textbooks' for tab in course_module.tabs):
-                course_module.tabs.append({"type": "pdf_textbooks"})
-            course_module.pdf_textbooks = textbooks
-            # Save the data that we've just changed to the underlying
-            # MongoKeyValueStore before we update the mongo datastore.
-            course_module.save()
-            store.update_metadata(
-                course_module.location,
-                own_metadata(course_module)
-            )
-            return JsonResponse(course_module.pdf_textbooks)
-    else:
+    if not "application/json" in request.META.get('HTTP_ACCEPT', 'text/html'):
+        # return HTML page
         upload_asset_url = course_locator.url_reverse('assets/', '')
         textbook_url = course_locator.url_reverse('/textbooks')
         return render_to_response('textbooks.html', {
@@ -712,47 +690,56 @@ def textbooks_list_handler(request, tag=None, course_id=None, branch=None, versi
             'textbook_url': textbook_url,
         })
 
+    # from here on down, we know the client has requested JSON
+    if request.method == 'GET':
+        return JsonResponse(course_module.pdf_textbooks)
+    elif request.method == 'PUT':
+        try:
+            textbooks = validate_textbooks_json(request.body)
+        except TextbookValidationError as err:
+            return JsonResponse({"error": err.message}, status=400)
 
-@require_POST
-@login_required
-@ensure_csrf_cookie
-def create_textbook(request, tag=None, course_id=None, branch=None, version_guid=None, block=None):
-    """
-    JSON API endpoint for creating a textbook. Used by the Backbone application.
-    """
-    course_locator = BlockUsageLocator(course_id=course_id, branch=branch, version_guid=version_guid, usage_id=block)
-    if not has_access(request.user, course_locator):
-        raise PermissionDenied()
+        tids = set(t["id"] for t in textbooks if "id" in t)
+        for textbook in textbooks:
+            if not "id" in textbook:
+                tid = assign_textbook_id(textbook, tids)
+                textbook["id"] = tid
+                tids.add(tid)
 
-    course_location = loc_mapper().translate_locator_to_location(course_locator)
-    store = get_modulestore(course_location)
-    course_module = store.get_item(course_location, depth=0)
-
-    try:
-        textbook = validate_textbook_json(request.body)
-    except TextbookValidationError as err:
-        return JsonResponse({"error": err.message}, status=400)
-    if not textbook.get("id"):
-        tids = set(t["id"] for t in course_module.pdf_textbooks if "id" in t)
-        textbook["id"] = assign_textbook_id(textbook, tids)
-    existing = course_module.pdf_textbooks
-    existing.append(textbook)
-    course_module.pdf_textbooks = existing
-    if not any(tab['type'] == 'pdf_textbooks' for tab in course_module.tabs):
-        tabs = course_module.tabs
-        tabs.append({"type": "pdf_textbooks"})
-        course_module.tabs = tabs
-    # Save the data that we've just changed to the underlying
-    # MongoKeyValueStore before we update the mongo datastore.
-    course_module.save()
-    store.update_metadata(course_module.location, own_metadata(course_module))
-    resp = JsonResponse(textbook, status=201)
-    url = course_locator.url_reverse('textbooks')
-    if not url.endswith("/"):
-        url += "/"
-    url += str(textbook["id"])
-    resp["Location"] = url
-    return resp
+        if not any(tab['type'] == 'pdf_textbooks' for tab in course_module.tabs):
+            course_module.tabs.append({"type": "pdf_textbooks"})
+        course_module.pdf_textbooks = textbooks
+        # Save the data that we've just changed to the underlying
+        # MongoKeyValueStore before we update the mongo datastore.
+        course_module.save()
+        store.update_metadata(
+            course_module.location,
+            own_metadata(course_module)
+        )
+        return JsonResponse(course_module.pdf_textbooks)
+    elif request.method == 'POST':
+        # create a new textbook for the course
+        try:
+            textbook = validate_textbook_json(request.body)
+        except TextbookValidationError as err:
+            return JsonResponse({"error": err.message}, status=400)
+        if not textbook.get("id"):
+            tids = set(t["id"] for t in course_module.pdf_textbooks if "id" in t)
+            textbook["id"] = assign_textbook_id(textbook, tids)
+        existing = course_module.pdf_textbooks
+        existing.append(textbook)
+        course_module.pdf_textbooks = existing
+        if not any(tab['type'] == 'pdf_textbooks' for tab in course_module.tabs):
+            tabs = course_module.tabs
+            tabs.append({"type": "pdf_textbooks"})
+            course_module.tabs = tabs
+        # Save the data that we've just changed to the underlying
+        # MongoKeyValueStore before we update the mongo datastore.
+        course_module.save()
+        store.update_metadata(course_module.location, own_metadata(course_module))
+        resp = JsonResponse(textbook, status=201)
+        resp["Location"] = course_locator.url_reverse('textbooks', textbook["id"])
+        return resp
 
 
 @login_required
