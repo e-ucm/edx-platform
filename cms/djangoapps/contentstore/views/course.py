@@ -677,7 +677,7 @@ def textbooks_list_handler(request, tag=None, course_id=None, branch=None, versi
 
     course_location = loc_mapper().translate_locator_to_location(course_locator)
     store = get_modulestore(course_location)
-    course_module = store.get_item(course_location, depth=3)
+    course_module = store.get_item(course_location, depth=0)
 
     if not "application/json" in request.META.get('HTTP_ACCEPT', 'text/html'):
         # return HTML page
@@ -756,7 +756,7 @@ def textbooks_detail_handler(request, tid, tag=None, course_id=None, branch=None
 
     course_location = loc_mapper().translate_locator_to_location(course_locator)
     store = get_modulestore(course_location)
-    course_module = store.get_item(course_location, depth=3)
+    course_module = store.get_item(course_location, depth=0)
     matching_id = [tb for tb in course_module.pdf_textbooks
                    if str(tb.get("id")) == str(tid)]
     if matching_id:
