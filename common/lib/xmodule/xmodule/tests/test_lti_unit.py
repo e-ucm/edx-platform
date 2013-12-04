@@ -5,6 +5,7 @@ from mock import Mock, patch, PropertyMock
 import mock
 import textwrap
 from lxml import etree
+import json
 from webob.request import Request
 from copy import copy
 from collections import OrderedDict
@@ -224,7 +225,7 @@ class LTIModuleTest(LogicTest):
         self.assertEqual(real_user_id, expected_user_id)
 
     def test_outcome_service_url(self):
-        expected_outcome_service_url = 'http://{host}{path}'.format(
+        expected_outcome_service_url = 'https://{host}{path}'.format(
                 host=self.xmodule.runtime.hostname,
                 path=self.xmodule.runtime.handler_url(self.xmodule, 'grade_handler', thirdparty=True).rstrip('/?')
             )
@@ -310,7 +311,11 @@ class LTIModuleTest(LogicTest):
         """
         with patch('xmodule.lti_module.signature.verify_hmac_sha1') as mocked_verify:
             mocked_verify.return_value = True
-            self.xmodule.verify_oauth_body_sign(self.get_signed_mock_request())
+            try:
+                self.xmodule.verify_oauth_body_sign(self.get_signed_mock_request())
+            except LTIError:
+                self.fail("verify_oauth_body_sign() raised LTIError unexpectedly!")
+
 
     @patch('xmodule.lti_module.LTIModule.get_client_key_secret', return_value=('test_client_key', u'test_client_secret'))
     def test_failed_verify_oauth_body_sign(self, get_key_secret):
@@ -372,10 +377,6 @@ class LTIModuleTest(LogicTest):
             headers[u'Authorization'] = ', '.join([k+'="'+v+'"' for k, v in old_parsed.items()])
             return None, headers, None
 
-        patcher = mock.patch.object(oauthlib.oauth1.Client, "sign", mocked_sign)
-        patcher.start()
-        self.addCleanup(patcher.stop)
-
         self.xmodule.get_resource_link_id = Mock(return_value = 'test_resource_link_id')
         self.xmodule.get_outcome_service_url = Mock(return_value = 'http://test_outcome_service_url')
 
@@ -396,14 +397,15 @@ class LTIModuleTest(LogicTest):
             'test_custom_params': 'test_custom_param_value',
             u'oauth_callback': u'about:blank'
         }
-        params = self.xmodule.oauth_params(custom_parameters, client_key, client_secret)
+        with mock.patch.object(oauthlib.oauth1.Client, "sign", mocked_sign):
+            params = self.xmodule.oauth_params(custom_parameters, client_key, client_secret)
         self.assertEqual(params, expected_params)
 
     def test_good_custom_params(self):
         """
         Custom parameters are present in right format.
         """
-        self.xmodule.custom_parameters = {'test_custom_params=test_custom_param_value'}
+        self.xmodule.custom_parameters = ['test_custom_params=test_custom_param_value']
         self.xmodule.get_client_key_secret = Mock(return_value=('test_client_key', 'test_client_secret'))
         self.xmodule.oauth_params = Mock()
         self.xmodule.get_input_fields()
@@ -416,7 +418,7 @@ class LTIModuleTest(LogicTest):
         """
         Custom parameters are present in wrong format.
         """
-        bad_custom_params = {'test_custom_params: test_custom_param_value'}
+        bad_custom_params = ['test_custom_params: test_custom_param_value']
         self.xmodule.custom_parameters = bad_custom_params
         self.xmodule.get_client_key_secret = Mock(return_value=('test_client_key', 'test_client_secret'))
         self.xmodule.oauth_params = Mock()
@@ -432,8 +434,8 @@ class LTIModuleTest(LogicTest):
         json_dump = self.xmodule.handle_ajax(dispatch, data)
         expected_json_dump = '{"input_fields": {"test_input_field_key": "test_input_field_value"}}'
         self.assertEqual(
-            json_dump,
-            expected_json_dump
+            json.loads(json_dump),
+            json.loads(expected_json_dump)
         )
 
     def test_handle_ajax_bad_dispatch(self):
@@ -443,7 +445,7 @@ class LTIModuleTest(LogicTest):
         json_dump = self.xmodule.handle_ajax(dispatch, data)
         expected_json_dump = '{"error": "Unknown Command!"}'
         self.assertEqual(
-            json_dump,
-            expected_json_dump
+            json.loads(json_dump),
+            json.loads(expected_json_dump)
         )
 

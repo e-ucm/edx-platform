@@ -3,7 +3,6 @@ Test for Mock_LTI_Server
 """
 import mock
 from mock import Mock
-from mock import MagicMock
 import unittest
 import threading
 import textwrap
@@ -34,6 +33,8 @@ class MockLTIServerTest(unittest.TestCase):
             'lti_endpoint': 'correct_lti_endpoint'
         }
         self.server.run_inside_unittest_flag = True
+        #flag for creating right callback_url
+        self.server.test_mode = True
 
         # Start the server in a separate daemon thread
         server_thread = threading.Thread(target=self.server.serve_forever)
@@ -90,7 +91,7 @@ class MockLTIServerTest(unittest.TestCase):
         response = requests.post(uri, data=payload, headers=headers)
         self.assertTrue('Wrong LTI signature' in response.content)
 
-    
+
     def test_success_response_launch_lti(self):
         """
         Success lti launch.
@@ -114,7 +115,7 @@ class MockLTIServerTest(unittest.TestCase):
             "lis_outcome_service_url": '',
         }
         self.server.check_oauth_signature = Mock(return_value=True)
-        
+
         uri = self.server.oauth_settings['lti_base'] + self.server.oauth_settings['lti_endpoint']
         headers = {'referer': 'http://localhost:8000/'}
         response = requests.post(uri, data=payload, headers=headers)
@@ -141,12 +142,12 @@ class MockLTIServerTest(unittest.TestCase):
             "lis_outcome_service_url": '',
         }
         self.server.check_oauth_signature = Mock(return_value=True)
-        
+
         uri = self.server.oauth_settings['lti_base'] + self.server.oauth_settings['lti_endpoint']
         #this is the uri for sending grade from lti
         headers = {'referer': 'http://localhost:8000/'}
         response = requests.post(uri, data=payload, headers=headers)
-        
+
         self.assertTrue('This is LTI tool. Success.' in response.content)
         self.server.grade_data['TC answer'] = "Test response"
         graded_response = requests.post('http://127.0.0.1:8034/grade')

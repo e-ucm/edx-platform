@@ -1,3 +1,12 @@
+"""
+LTI Server
+
+What is supported:
+------------------
+
+1.) One Tool Consumer at the same time
+
+"""
 from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
 from uuid import uuid4
 import textwrap
@@ -169,11 +178,13 @@ class MockLTIRequestHandler(BaseHTTPRequestHandler):
         data = payload.format(**values)
         # temporarily changed to get for easy view in browser
         # get relative part, because host name is different in a) manual tests b) acceptance tests c) demos
-        relative_url = urlparse.urlparse(self.server.grade_data['callback_url']).path
-        url = self.server.referer_host + relative_url
+        if getattr(self.server, 'test_mode', None):
+            relative_url = urlparse.urlparse(self.server.grade_data['callback_url']).path
+            url = self.server.referer_host + relative_url
+        else:
+            url = self.server.grade_data['callback_url']
 
         headers = {'Content-Type': 'application/xml', 'X-Requested-With': 'XMLHttpRequest'}
-
         headers['Authorization'] = self.oauth_sign(url, data)
 
         if getattr(self.server, 'run_inside_unittest_flag', None):

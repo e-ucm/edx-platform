@@ -48,6 +48,7 @@ from webob import Response
 import mock
 from xml.sax.saxutils import escape
 
+from django.conf import settings
 from xmodule.editing_module import MetadataOnlyEditingDescriptor
 from xmodule.raw_module import EmptyDataRawDescriptor
 from xmodule.x_module import XModule, module_attr
@@ -285,7 +286,7 @@ class LTIModule(LTIFields, XModule):
         """
         Return URL for storing grades.
         """
-        uri = 'http://{host}{path}'.format(
+        uri = 'https://{host}{path}'.format(
                 host=self.system.hostname,
                 path=self.runtime.handler_url(self, 'grade_handler', thirdparty=True).rstrip('/?')
             )
