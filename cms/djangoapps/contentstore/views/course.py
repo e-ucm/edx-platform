@@ -60,6 +60,15 @@ __all__ = ['course_info_handler', 'course_handler', 'course_info_update_handler'
            'textbooks_list_handler', 'textbooks_detail_handler']
 
 
+def get_locator_and_course(course_id, branch, version_guid, usage_id, user, depth=0):
+    locator = BlockUsageLocator(course_id=course_id, branch=branch, version_guid=version_guid, usage_id=usage_id)
+    if not has_access(user, locator):
+        raise PermissionDenied()
+    course_location = loc_mapper().translate_locator_to_location(locator)
+    course_module = modulestore().get_item(course_location, depth=depth)
+    return locator, course_module
+
+
 # pylint: disable=unused-argument
 @login_required
 def course_handler(request, tag=None, course_id=None, branch=None, version_guid=None, block=None):
@@ -167,17 +176,10 @@ def course_index(request, course_id, branch, version_guid, block):
 
     org, course, name: Attributes of the Location for the item to edit
     """
-    location = BlockUsageLocator(course_id=course_id, branch=branch, version_guid=version_guid, usage_id=block)
-    # TODO: when converting to split backend, if location does not have a usage_id,
-    # we'll need to get the course's root block_id
-    if not has_access(request.user, location):
-        raise PermissionDenied()
-
-    old_location = loc_mapper().translate_locator_to_location(location)
-
-    lms_link = get_lms_link_for_item(old_location)
-
-    course = modulestore().get_item(old_location, depth=3)
+    locator, course = get_locator_and_course(
+        course_id, branch, version_guid, block, request.user, depth=3
+    )
+    lms_link = get_lms_link_for_item(course.location)
     sections = course.get_children()
 
     return render_to_response('overview.html', {
@@ -185,9 +187,9 @@ def course_index(request, course_id, branch, version_guid, block):
         'lms_link': lms_link,
         'sections': sections,
         'course_graders': json.dumps(
-            CourseGradingModel.fetch(location).graders
+            CourseGradingModel.fetch(course.location).graders
         ),
-        'parent_locator': location,
+        'parent_locator': course.location,
         'new_section_category': 'chapter',
         'new_subsection_category': 'sequential',
         'new_unit_category': 'vertical',
@@ -313,22 +315,18 @@ def course_info_handler(request, tag=None, course_id=None, branch=None, version_
     GET
         html: return html for editing the course info handouts and updates.
     """
-    course_location = BlockUsageLocator(course_id=course_id, branch=branch, version_guid=version_guid, usage_id=block)
-    course_old_location = loc_mapper().translate_locator_to_location(course_location)
+    locator, course_module = get_locator_and_course(
+        course_id, branch, version_guid, block, request.user
+    )
     if 'text/html' in request.META.get('HTTP_ACCEPT', 'text/html'):
-        if not has_access(request.user, course_location):
-            raise PermissionDenied()
-
-        course_module = modulestore().get_item(course_old_location)
-
-        handouts_old_location = course_old_location.replace(category='course_info', name='handouts')
+        handouts_old_location = course_module.location.replace(category='course_info', name='handouts')
         handouts_locator = loc_mapper().translate_location(
-            course_old_location.course_id, handouts_old_location, False, True
+            course_module.location.course_id, handouts_old_location, False, True
         )
 
-        update_location = course_old_location.replace(category='course_info', name='updates')
+        update_location = course_module.location.replace(category='course_info', name='updates')
         update_locator = loc_mapper().translate_location(
-            course_old_location.course_id, update_location, False, True
+            course_module.location.course_id, update_location, False, True
         )
 
         return render_to_response(
@@ -337,7 +335,7 @@ def course_info_handler(request, tag=None, course_id=None, branch=None, version_
                 'context_course': course_module,
                 'updates_url': update_locator.url_reverse('course_info_update/'),
                 'handouts_locator': handouts_locator,
-                'base_asset_url': StaticContent.get_base_url_path_for_course_assets(course_old_location) + '/'
+                'base_asset_url': StaticContent.get_base_url_path_for_course_assets(course_module.location) + '/'
             }
         )
     else:
@@ -406,20 +404,16 @@ def settings_handler(request, tag=None, course_id=None, branch=None, version_gui
     PUT
         json: update the Course and About xblocks through the CourseDetails model
     """
-    locator = BlockUsageLocator(course_id=course_id, branch=branch, version_guid=version_guid, usage_id=block)
-    if not has_access(request.user, locator):
-        raise PermissionDenied()
-
+    locator, course_module = get_locator_and_course(
+        course_id, branch, version_guid, block, request.user
+    )
     if 'text/html' in request.META.get('HTTP_ACCEPT', '') and request.method == 'GET':
-        course_old_location = loc_mapper().translate_locator_to_location(locator)
-        course_module = modulestore().get_item(course_old_location)
-
         upload_asset_url = locator.url_reverse('assets/')
 
         return render_to_response('settings.html', {
             'context_course': course_module,
             'course_locator': locator,
-            'lms_link_for_about_page': utils.get_lms_link_for_about_page(course_old_location),
+            'lms_link_for_about_page': utils.get_lms_link_for_about_page(course_module.location),
             'course_image_url': utils.course_image_url(course_module),
             'details_url': locator.url_reverse('/settings/details/'),
             'about_page_editable': not settings.FEATURES.get(
@@ -456,13 +450,11 @@ def grading_handler(request, tag=None, course_id=None, branch=None, version_guid
         json no grader_index: update the Course through the CourseGrading model
         json w/ grader_index: create or update the specific grader (create if index out of range)
     """
-    locator = BlockUsageLocator(course_id=course_id, branch=branch, version_guid=version_guid, usage_id=block)
-    if not has_access(request.user, locator):
-        raise PermissionDenied()
+    locator, course_module = get_locator_and_course(
+        course_id, branch, version_guid, block, request.user
+    )
 
     if 'text/html' in request.META.get('HTTP_ACCEPT', '') and request.method == 'GET':
-        course_old_location = loc_mapper().translate_locator_to_location(locator)
-        course_module = modulestore().get_item(course_old_location)
         course_details = CourseGradingModel.fetch(locator)
 
         return render_to_response('settings_graders.html', {
@@ -513,8 +505,8 @@ def _config_course_advanced_components(request, course_module):
     filter_tabs = True  # Exceptional conditions will pull this to False
     if ADVANCED_COMPONENT_POLICY_KEY in request.json:  # Maps tab types to components
         tab_component_map = {
-            'open_ended':OPEN_ENDED_COMPONENT_TYPES,
-            'notes':NOTE_COMPONENT_TYPES,
+            'open_ended': OPEN_ENDED_COMPONENT_TYPES,
+            'notes': NOTE_COMPONENT_TYPES,
         }
         # Check to see if the user instantiated any notes or open ended
         # components
@@ -564,13 +556,9 @@ def advanced_settings_handler(request, course_id=None, branch=None, version_guid
             metadata dicts. The dict can include a "unsetKeys" entry which is a list
             of keys whose values to unset: i.e., revert to default
     """
-    locator = BlockUsageLocator(course_id=course_id, branch=branch, version_guid=version_guid, usage_id=block)
-    if not has_access(request.user, locator):
-        raise PermissionDenied()
-
-    course_old_location = loc_mapper().translate_locator_to_location(locator)
-    course_module = modulestore().get_item(course_old_location)
-
+    locator, course_module = get_locator_and_course(
+        course_id, branch, version_guid, block, request.user
+    )
     if 'text/html' in request.META.get('HTTP_ACCEPT', '') and request.method == 'GET':
 
         return render_to_response('settings_advanced.html', {
@@ -671,28 +659,25 @@ def textbooks_list_handler(request, tag=None, course_id=None, branch=None, versi
     PUT
         json: overwrite all textbooks in the course with the given list
     """
-    course_locator = BlockUsageLocator(course_id=course_id, branch=branch, version_guid=version_guid, usage_id=block)
-    if not has_access(request.user, course_locator):
-        raise PermissionDenied()
-
-    course_location = loc_mapper().translate_locator_to_location(course_locator)
-    store = get_modulestore(course_location)
-    course_module = store.get_item(course_location, depth=0)
+    locator, course = get_locator_and_course(
+        course_id, branch, version_guid, block, request.user
+    )
+    store = get_modulestore(course.location)
 
     if not "application/json" in request.META.get('HTTP_ACCEPT', 'text/html'):
         # return HTML page
-        upload_asset_url = course_locator.url_reverse('assets/', '')
-        textbook_url = course_locator.url_reverse('/textbooks')
+        upload_asset_url = locator.url_reverse('assets/', '')
+        textbook_url = locator.url_reverse('/textbooks')
         return render_to_response('textbooks.html', {
-            'context_course': course_module,
-            'course': course_module,
+            'context_course': course,
+            'course': course,
             'upload_asset_url': upload_asset_url,
             'textbook_url': textbook_url,
         })
 
     # from here on down, we know the client has requested JSON
     if request.method == 'GET':
-        return JsonResponse(course_module.pdf_textbooks)
+        return JsonResponse(course.pdf_textbooks)
     elif request.method == 'PUT':
         try:
             textbooks = validate_textbooks_json(request.body)
@@ -706,17 +691,17 @@ def textbooks_list_handler(request, tag=None, course_id=None, branch=None, versi
                 textbook["id"] = tid
                 tids.add(tid)
 
-        if not any(tab['type'] == 'pdf_textbooks' for tab in course_module.tabs):
-            course_module.tabs.append({"type": "pdf_textbooks"})
-        course_module.pdf_textbooks = textbooks
+        if not any(tab['type'] == 'pdf_textbooks' for tab in course.tabs):
+            course.tabs.append({"type": "pdf_textbooks"})
+        course.pdf_textbooks = textbooks
         # Save the data that we've just changed to the underlying
         # MongoKeyValueStore before we update the mongo datastore.
-        course_module.save()
+        course.save()
         store.update_metadata(
-            course_module.location,
-            own_metadata(course_module)
+            course.location,
+            own_metadata(course)
         )
-        return JsonResponse(course_module.pdf_textbooks)
+        return JsonResponse(course.pdf_textbooks)
     elif request.method == 'POST':
         # create a new textbook for the course
         try:
@@ -724,21 +709,21 @@ def textbooks_list_handler(request, tag=None, course_id=None, branch=None, versi
         except TextbookValidationError as err:
             return JsonResponse({"error": err.message}, status=400)
         if not textbook.get("id"):
-            tids = set(t["id"] for t in course_module.pdf_textbooks if "id" in t)
+            tids = set(t["id"] for t in course.pdf_textbooks if "id" in t)
             textbook["id"] = assign_textbook_id(textbook, tids)
-        existing = course_module.pdf_textbooks
+        existing = course.pdf_textbooks
         existing.append(textbook)
-        course_module.pdf_textbooks = existing
-        if not any(tab['type'] == 'pdf_textbooks' for tab in course_module.tabs):
-            tabs = course_module.tabs
+        course.pdf_textbooks = existing
+        if not any(tab['type'] == 'pdf_textbooks' for tab in course.tabs):
+            tabs = course.tabs
             tabs.append({"type": "pdf_textbooks"})
-            course_module.tabs = tabs
+            course.tabs = tabs
         # Save the data that we've just changed to the underlying
         # MongoKeyValueStore before we update the mongo datastore.
-        course_module.save()
-        store.update_metadata(course_module.location, own_metadata(course_module))
+        course.save()
+        store.update_metadata(course.location, own_metadata(course))
         resp = JsonResponse(textbook, status=201)
-        resp["Location"] = course_locator.url_reverse('textbooks', textbook["id"])
+        resp["Location"] = locator.url_reverse('textbooks', textbook["id"])
         return resp
 
 
@@ -750,14 +735,11 @@ def textbooks_detail_handler(request, tid, tag=None, course_id=None, branch=None
     JSON API endpoint for manipulating a textbook via its internal ID.
     Used by the Backbone application.
     """
-    course_locator = BlockUsageLocator(course_id=course_id, branch=branch, version_guid=version_guid, usage_id=block)
-    if not has_access(request.user, course_locator):
-        raise PermissionDenied()
-
-    course_location = loc_mapper().translate_locator_to_location(course_locator)
-    store = get_modulestore(course_location)
-    course_module = store.get_item(course_location, depth=0)
-    matching_id = [tb for tb in course_module.pdf_textbooks
+    locator, course = get_locator_and_course(
+        course_id, branch, version_guid, block, request.user
+    )
+    store = get_modulestore(course.location)
+    matching_id = [tb for tb in course.pdf_textbooks
                    if str(tb.get("id")) == str(tid)]
     if matching_id:
         textbook = matching_id[0]
@@ -776,32 +758,32 @@ def textbooks_detail_handler(request, tid, tag=None, course_id=None, branch=None
             return JsonResponse({"error": err.message}, status=400)
         new_textbook["id"] = tid
         if textbook:
-            i = course_module.pdf_textbooks.index(textbook)
-            new_textbooks = course_module.pdf_textbooks[0:i]
+            i = course.pdf_textbooks.index(textbook)
+            new_textbooks = course.pdf_textbooks[0:i]
             new_textbooks.append(new_textbook)
-            new_textbooks.extend(course_module.pdf_textbooks[i + 1:])
-            course_module.pdf_textbooks = new_textbooks
+            new_textbooks.extend(course.pdf_textbooks[i + 1:])
+            course.pdf_textbooks = new_textbooks
         else:
-            course_module.pdf_textbooks.append(new_textbook)
+            course.pdf_textbooks.append(new_textbook)
         # Save the data that we've just changed to the underlying
         # MongoKeyValueStore before we update the mongo datastore.
-        course_module.save()
+        course.save()
         store.update_metadata(
-            course_module.location,
-            own_metadata(course_module)
+            course.location,
+            own_metadata(course)
         )
         return JsonResponse(new_textbook, status=201)
     elif request.method == 'DELETE':
         if not textbook:
             return JsonResponse(status=404)
-        i = course_module.pdf_textbooks.index(textbook)
-        new_textbooks = course_module.pdf_textbooks[0:i]
-        new_textbooks.extend(course_module.pdf_textbooks[i + 1:])
-        course_module.pdf_textbooks = new_textbooks
-        course_module.save()
+        i = course.pdf_textbooks.index(textbook)
+        new_textbooks = course.pdf_textbooks[0:i]
+        new_textbooks.extend(course.pdf_textbooks[i + 1:])
+        course.pdf_textbooks = new_textbooks
+        course.save()
         store.update_metadata(
-            course_module.location,
-            own_metadata(course_module)
+            course.location,
+            own_metadata(course)
         )
         return JsonResponse()
 
