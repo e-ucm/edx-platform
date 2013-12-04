@@ -59,10 +59,6 @@
                     expect(lti.openInANewPage).toEqual(false);
                     expect(lti.ajaxUrl).toEqual(jasmine.any(String));
 
-                    expect(lti.formEl).toHandleWith(
-                        'submit', lti.submitFormCatcher
-                    );
-
                     expect('submit').toHaveBeenTriggeredOn(lti.formEl);
                 });
 
@@ -88,7 +84,7 @@
                     expect(lti.newWindowBtnEl).toBeDefined();
                     expect(lti.newWindowBtnEl).toExist();
                     expect(lti.newWindowBtnEl).toHandleWith(
-                        'click', lti.newWindowBtnClick
+                        'click', lti.submitFormHandler
                     );
                 });
 
@@ -120,39 +116,45 @@
             });
         });
 
-        describe('submitFormCatcher method', function () {
+        describe('submitFormHandler method', function () {
             var thisObj, eventObj;
 
             beforeEach(function () {
                 thisObj = {
                     signatureIsNew: undefined,
-                    getNewSignature: jasmine.createSpy('getNewSignature')
+                    getNewSignature: jasmine.createSpy('getNewSignature'),
+                    formEl: {
+                        submit: jasmine.createSpy('submit')
+                    }
                 };
 
                 eventObj = {
                     data: {
-                        '_this': thisObj
+                        ltiInstance: thisObj
                     },
                     preventDefault: jasmine.createSpy('preventDefault')
                 };
+
+                spyOn($.fn, 'submit');
             });
 
             it('signature is new', function () {
                 thisObj.signatureIsNew = true;
 
-                expect(window.LTI.prototype.submitFormCatcher(eventObj))
-                    .toBe(true);
+                window.LTI.prototype.submitFormHandler(eventObj);
+
+                expect(thisObj.formEl.submit).toHaveBeenCalled();
                 expect(thisObj.signatureIsNew).toBe(false);
             });
 
             it('signature is old', function () {
                 thisObj.signatureIsNew = false;
 
-                expect(window.LTI.prototype.submitFormCatcher(eventObj))
-                    .toBe(false);
+                window.LTI.prototype.submitFormHandler(eventObj);
 
+                expect($.fn.submit).not.toHaveBeenCalled();
+                expect(thisObj.signatureIsNew).toBe(false);
                 expect(thisObj.getNewSignature).toHaveBeenCalled();
-                expect(eventObj.preventDefault).toHaveBeenCalled();
             });
 
             afterEach(function () {
@@ -161,33 +163,47 @@
             });
         });
 
-        describe('newWindowBtnClick method', function () {
-            var thisObj, eventObj;
+        describe('getNewSignature method', function () {
+            var lti;
 
             beforeEach(function () {
-                thisObj = {
-                    formEl: {
-                        submit: jasmine.createSpy('submit')
+                loadFixtures('lti.html');
+                setUpLtiElement($('.lti-wrapper'), IN_NEW_WINDOW, NEW_URL);
+
+                spyOn($, 'postWithPrefix').andCallFake(
+                    function (url, data, callback) {
+                        callback({
+                            input_fields: {}
+                        });
                     }
-                };
+                );
 
-                eventObj = {
-                    data: {
-                        '_this': thisObj
-                    },
-                    preventDefault: jasmine.createSpy('preventDefault')
-                };
+                lti = new window.LTI('.lti-wrapper');
+
+                spyOn(lti, 'handleAjaxUpdateSignature');
             });
 
-            it('signature is new', function () {
-                window.LTI.prototype.newWindowBtnClick(eventObj);
+            it(
+                '"Open in new page" is clicked twice, signature is requested once',
+                function () {
+                    lti.newWindowBtnEl.click();
+                    lti.newWindowBtnEl.click();
 
-                expect(thisObj.formEl.submit).toHaveBeenCalled();
-            });
+                    expect($.postWithPrefix).toHaveBeenCalledWith(
+                        lti.ajaxUrl + '/regenerate_signature',
+                        {},
+                        lti.handleAjaxUpdateSignature
+                    );
+
+                    expect(lti.handleAjaxUpdateSignature)
+                        .toHaveBeenCalledWith({
+                            input_fields: {}
+                        });
+                }
+            );
 
             afterEach(function () {
                 thisObj = undefined;
-                eventObj = undefined;
             });
         });
     });

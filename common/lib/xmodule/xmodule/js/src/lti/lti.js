@@ -33,9 +33,7 @@ window.LTI = (function ($, undefined) {
     var LTI = LTIConstructor;
 
     LTI.prototype = {
-        constructor: LTIConstructor,
-        submitFormCatcher: submitFormCatcher,
-        newWindowBtnClick: newWindowBtnClick,
+        submitFormHandler: submitFormHandler,
         getNewSignature: getNewSignature,
         handleAjaxUpdateSignature: handleAjaxUpdateSignature
     };
@@ -79,55 +77,50 @@ window.LTI = (function ($, undefined) {
         // submit.
         this.signatureIsNew = true;
 
-        // Must catch all submits of form. The catcher will update the OAuth
-        // signature if it is old, before carrying on with form submission.
-        this.formEl.on('submit', {'_this': this}, this.submitFormCatcher);
-
         // If the Form's action attribute is set (i.e. we can perform a normal
         // submit), then we (depending on instance settings) submit the form
         // when user will click on a link, or submit the form immediately.
         if (this.openInANewPage === true) {
-            this.newWindowBtnEl = this.el
-                .find('.link_lti_new_window')
-                .on('click', {'_this': this}, newWindowBtnClick);
+            this.newWindowBtnEl = this.el.find('.link_lti_new_window')
+                .on(
+                    'click',
+                    { ltiInstance: this },
+                    this.submitFormHandler
+                );
         } else {
             // At this stage the form exists on the page and has a valid
             // action. We are safe to submit it, even if `openInANewPage` is
             // set to some weird value.
-            this.formEl.submit();
+            this.submitFormHandler();
         }
     }
 
-    // The form submit catcher. Before the form is submitted, we must check if
+    // The form submit handler. Before the form is submitted, we must check if
     // the OAuth signature is new (valid). If it is not new, block form
     // submission and request for a signature. After a new signature is
-    // fetched, submit the form.
-    function submitFormCatcher(event) {
-        var _this = event.data['_this'];
+    // fetched, the form will be submitted.
+    function submitFormHandler(event) {
+        var lti;
 
-        if (_this.signatureIsNew) {
+        if (event) {
+            lti = event.data.ltiInstance;
+        } else {
+            lti = this;
+        }
+
+        if (lti.signatureIsNew) {
             // If the OAuth signature is new, mark it as old.
-            _this.signatureIsNew = false;
+            lti.signatureIsNew = false;
 
             // Continue with submitting the form.
-            return true;
+            lti.formEl.submit();
         } else {
             // The OAuth signature is old. Request for a new OAuth signature.
-            _this.getNewSignature();
+            lti.getNewSignature();
 
             // Don't submit the form. It will be submitted once a new OAuth
             // signature is received.
-            event.preventDefault();
-            return false;
         }
-    }
-
-    // Click handler for the "View LTI in new window" button. When it is
-    // clicked, submit the form.
-    function newWindowBtnClick(event) {
-        var _this = event.data['_this'];
-
-        _this.formEl.submit();
     }
 
     // Request form the server a new OAuth signature.
@@ -158,7 +151,9 @@ window.LTI = (function ($, undefined) {
             });
 
             // Submit the form.
-            this.formEl.trigger('submit');
+            this.submitFormHandler();
+        } else {
+            console.log('[LTI info]: ERROR. Could not update signature.');
         }
     }
 }).call(this, window.jQuery);
