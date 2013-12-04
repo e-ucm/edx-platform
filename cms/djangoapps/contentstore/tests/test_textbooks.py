@@ -73,13 +73,13 @@ class TextbookIndexTestCase(CourseTestCase):
         obj = json.loads(resp.content)
         self.assertEqual(content, obj)
 
-    def test_view_index_xhr_post(self):
+    def test_view_index_xhr_put(self):
         "Check that you can save information to the server"
         textbooks = [
             {"tab_title": "Hi, mom!"},
             {"tab_title": "Textbook 2"},
         ]
-        resp = self.client.post(
+        resp = self.client.put(
             self.url,
             data=json.dumps(textbooks),
             content_type="application/json",
@@ -98,9 +98,9 @@ class TextbookIndexTestCase(CourseTestCase):
             no_ids.append(textbook)
         self.assertEqual(no_ids, textbooks)
 
-    def test_view_index_xhr_post_invalid(self):
+    def test_view_index_xhr_put_invalid(self):
         "Check that you can't save invalid JSON"
-        resp = self.client.post(
+        resp = self.client.put(
             self.url,
             data="invalid",
             content_type="application/json",
@@ -118,7 +118,7 @@ class TextbookCreateTestCase(CourseTestCase):
     def setUp(self):
         "Set up a url and some textbook content for tests"
         super(TextbookCreateTestCase, self).setUp()
-        self.url = self.course_locator.url_reverse('textbooks') + "/new"
+        self.url = self.course_locator.url_reverse('textbooks')
         self.textbook = {
             "tab_title": "Economics",
             "chapters": {
@@ -142,15 +142,6 @@ class TextbookCreateTestCase(CourseTestCase):
         self.assertIn("id", textbook)
         del textbook["id"]
         self.assertEqual(self.textbook, textbook)
-
-    def test_get(self):
-        "Test that GET is not allowed"
-        resp = self.client.get(
-            self.url,
-            HTTP_ACCEPT="application/json",
-            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
-        )
-        self.assertEqual(resp.status_code, 405)
 
     def test_valid_id(self):
         "Textbook IDs must begin with a number; try a valid one"
@@ -180,12 +171,12 @@ class TextbookCreateTestCase(CourseTestCase):
         self.assertNotIn("Location", resp)
 
 
-class TextbookByIdTestCase(CourseTestCase):
-    "Test cases for the `textbook_by_id` view"
+class TextbookDetailTestCase(CourseTestCase):
+    "Test cases for the `textbook_detail_handler` view"
 
     def setUp(self):
         "Set some useful content and URLs for tests"
-        super(TextbookByIdTestCase, self).setUp()
+        super(TextbookDetailTestCase, self).setUp()
         self.textbook1 = {
             "tab_title": "Economics",
             "id": 1,
@@ -194,7 +185,7 @@ class TextbookByIdTestCase(CourseTestCase):
                 "url": "/a/b/c/ch1.pdf",
             }
         }
-        self.url1 = self.course_locator.url_reverse("textbooks") + "/1"
+        self.url1 = self.course_locator.url_reverse("textbooks", "1")
         self.textbook2 = {
             "tab_title": "Algebra",
             "id": 2,
@@ -203,14 +194,14 @@ class TextbookByIdTestCase(CourseTestCase):
                 "url": "/a/b/ch11.pdf",
             }
         }
-        self.url2 = self.course_locator.url_reverse("textbooks") + "/2"
+        self.url2 = self.course_locator.url_reverse("textbooks", "2")
         self.course.pdf_textbooks = [self.textbook1, self.textbook2]
         # Save the data that we've just changed to the underlying
         # MongoKeyValueStore before we update the mongo datastore.
         self.course.save()
         self.store = get_modulestore(self.course.location)
         self.store.update_metadata(self.course.location, own_metadata(self.course))
-        self.url_nonexist = self.course_locator.url_reverse("textbooks") + "/20"
+        self.url_nonexist = self.course_locator.url_reverse("textbooks", "20")
 
     def test_get_1(self):
         "Get the first textbook"
@@ -252,7 +243,7 @@ class TextbookByIdTestCase(CourseTestCase):
             "url": "supercool.pdf",
             "id": "1supercool",
         }
-        url = self.course_locator.url_reverse("textbooks") + "/1supercool"
+        url = self.course_locator.url_reverse("textbooks", "1supercool")
         resp = self.client.post(
             url,
             data=json.dumps(textbook),
