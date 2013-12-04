@@ -734,6 +734,13 @@ def textbooks_detail_handler(request, tid, tag=None, course_id=None, branch=None
     """
     JSON API endpoint for manipulating a textbook via its internal ID.
     Used by the Backbone application.
+
+    GET
+        json: return JSON representation of textbook
+    POST or PUT
+        json: update textbook based on provided information
+    DELETE
+        json: remove textbook
     """
     locator, course = get_locator_and_course(
         course_id, branch, version_guid, block, request.user
