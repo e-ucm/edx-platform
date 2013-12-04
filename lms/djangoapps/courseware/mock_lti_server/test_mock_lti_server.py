@@ -62,7 +62,7 @@ class MockLTIServerTest(unittest.TestCase):
         uri = self.server.oauth_settings['lti_base'] + self.server.oauth_settings['lti_endpoint']
         headers = {'referer': 'http://localhost:8000/'}
         response = requests.post(uri, data=payload, headers=headers)
-        self.assertTrue('Incorrect LTI header' in response.content)
+        self.assertIn('Incorrect LTI header', response.content)
 
     def test_wrong_signature(self):
         """
@@ -89,7 +89,7 @@ class MockLTIServerTest(unittest.TestCase):
         uri = self.server.oauth_settings['lti_base'] + self.server.oauth_settings['lti_endpoint']
         headers = {'referer': 'http://localhost:8000/'}
         response = requests.post(uri, data=payload, headers=headers)
-        self.assertTrue('Wrong LTI signature' in response.content)
+        self.assertIn('Wrong LTI signature', response.content)
 
 
     def test_success_response_launch_lti(self):
@@ -119,7 +119,7 @@ class MockLTIServerTest(unittest.TestCase):
         uri = self.server.oauth_settings['lti_base'] + self.server.oauth_settings['lti_endpoint']
         headers = {'referer': 'http://localhost:8000/'}
         response = requests.post(uri, data=payload, headers=headers)
-        self.assertTrue('This is LTI tool. Success.' in response.content)
+        self.assertIn('This is LTI tool. Success.', response.content)
 
     def test_send_graded_result(self):
 
@@ -151,8 +151,7 @@ class MockLTIServerTest(unittest.TestCase):
         self.assertTrue('This is LTI tool. Success.' in response.content)
         self.server.grade_data['TC answer'] = "Test response"
         graded_response = requests.post('http://127.0.0.1:8034/grade')
-
-        self.assertTrue("Test response" in graded_response.content)
+        self.assertIn('Test response', graded_response.content)
 
 
 

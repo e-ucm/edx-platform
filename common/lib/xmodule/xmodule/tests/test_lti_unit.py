@@ -352,55 +352,6 @@ class LTIModuleTest(LogicTest):
         """)
         return mock_request
 
-    def test_oauth_params(self):
-        """
-        Ensure that parameters and custom parameters were prepared correctly for sending in form.
-        """
-        custom_parameters = {'test_custom_params': 'test_custom_param_value'}
-        client_key = 'test_client_key'
-        client_secret = 'test_client_secret'
-
-        saved_sign = oauthlib.oauth1.Client.sign
-
-        def mocked_sign(self, *args, **kwargs):
-            """
-            Mocked oauth1 sign function.
-            """
-            # self is <oauthlib.oauth1.rfc5849.Client object> here:
-            __, headers, __ = saved_sign(self, *args, **kwargs)
-            # we should replace nonce, timestamp and signed_signature in headers:
-            old = headers[u'Authorization']
-            old_parsed = OrderedDict([param.strip().replace('"', '').split('=') for param in old.split(',')])
-            old_parsed[u'OAuth oauth_nonce'] = u'135685044251684026041377608307'
-            old_parsed[u'oauth_timestamp'] = u'1234567890'
-            old_parsed[u'oauth_signature'] = u'my_signature%3D' #mocked_signature_after_sign
-            headers[u'Authorization'] = ', '.join([k+'="'+v+'"' for k, v in old_parsed.items()])
-            return None, headers, None
-
-        self.xmodule.get_resource_link_id = Mock(return_value = 'test_resource_link_id')
-        self.xmodule.get_outcome_service_url = Mock(return_value = 'http://test_outcome_service_url')
-
-        expected_params = {u'launch_presentation_return_url': '',
-            u'lti_version': 'LTI-1p0',
-            u'user_id': u'student',
-            u'oauth_nonce': u'135685044251684026041377608307',
-            u'oauth_timestamp': u'1234567890',
-            u'lis_result_sourcedid': u':test_resource_link_id:student',
-            u'oauth_consumer_key': u'test_client_key',
-            u'resource_link_id': 'test_resource_link_id',
-            u'oauth_signature_method': u'HMAC-SHA1',
-            u'oauth_version': u'1.0',
-            u'role': u'student',
-            u'lis_outcome_service_url': 'http://test_outcome_service_url',
-            u'oauth_signature': u'my_signature=',
-            u'lti_message_type': u'basic-lti-launch-request',
-            'test_custom_params': 'test_custom_param_value',
-            u'oauth_callback': u'about:blank'
-        }
-        with mock.patch.object(oauthlib.oauth1.Client, "sign", mocked_sign):
-            params = self.xmodule.oauth_params(custom_parameters, client_key, client_secret)
-        self.assertEqual(params, expected_params)
-
     def test_good_custom_params(self):
         """
         Custom parameters are present in right format.
