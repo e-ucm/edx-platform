@@ -326,6 +326,9 @@ class CSVReportViewsTest(ModuleStoreTestCase):
     CORRECT_CSV_NO_DATE = ",1,purchased,1,40,40,usd,Registration for Course: Robot Super Course,"
 
     def test_report_csv(self):
+        # TODO test multiple types
+        report_type = "itemized_purchase_report"
+
         PaidCourseRegistration.add_to_order(self.cart, self.course_id)
         self.cart.purchase()
         self.login_user()
@@ -333,7 +336,7 @@ class CSVReportViewsTest(ModuleStoreTestCase):
         response = self.client.post(reverse('payment_csv_report'), {'start_date': '1970-01-01',
                                                                     'end_date': '2100-01-01'})
         self.assertEqual(response['Content-Type'], 'text/csv')
-        self.assertIn(",".join(OrderItem.csv_report_header_row()), response.content)
+        self.assertIn(",".join(OrderItem.csv_report_header_row(report_type)), response.content)
         self.assertIn(self.CORRECT_CSV_NO_DATE, response.content)
 
 

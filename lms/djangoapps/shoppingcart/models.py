@@ -260,64 +260,142 @@ class OrderItem(models.Model):
         return self.pk_with_subclass, set([])
 
     @classmethod
-    def purchased_items_btw_dates(cls, start_date, end_date):
+    def purchased_items_btw_dates(cls, report_type, start_date, end_date):
         """
         Returns a QuerySet of the purchased items between start_date and end_date inclusive.
         """
-        return cls.objects.filter(
-            status="purchased",
-            fulfilled_time__gte=start_date,
-            fulfilled_time__lt=end_date,
-        )
+        from nose.tools import set_trace; set_trace()
+        if report_type == "itemized_purchase_report":
+            return cls.objects.filter(
+                status="purchased",
+                fulfilled_time__gte=start_date,
+                fulfilled_time__lt=end_date,
+            )
+        elif report_type == "certificate_status":
+            # fetchall universities? or just some?
+            # for each course for a given university,
+            # give me enrollments and revenue
+            return
+        elif report_type == "university_revenue_share":
+                # for all courses for a given university, give me just the money
+                return
+        elif report_type == "refund_report":
+            return CertificateItem.objects.filter(
+                status="refunded",
+            )
+        else:
+            # TODO return all ze errors
+            return
 
     @classmethod
-    def csv_purchase_report_btw_dates(cls, filelike, start_date, end_date):
+    def csv_purchase_report_btw_dates(cls, report_type, filelike, start_date, end_date):
         """
         Outputs a CSV report into "filelike" (a file-like python object, such as an actual file, an HttpRequest,
         or sys.stdout) of purchased items between start_date and end_date inclusive.
         Opening and closing filelike (if applicable) should be taken care of by the caller
         """
-        items = cls.purchased_items_btw_dates(start_date, end_date).order_by("fulfilled_time")
+        # TODO: all of this reporting stuff seems sophistocated enough to warrant some acceptance tests
+
+        # temporary; used to keep tests from coughing and dying for now
+        report_type = "itemized_purchase_report"
+
+        #todo: make purchased_items_btw_dates return one of several querysets
+        items = cls.purchased_items_btw_dates(report_type, start_date, end_date).order_by("fulfilled_time")
 
         writer = unicodecsv.writer(filelike, encoding="utf-8")
-        writer.writerow(OrderItem.csv_report_header_row())
+
+        # todo: make csv_report_header_row return one of several types
+        writer.writerow(OrderItem.csv_report_header_row(report_type))
 
         for item in items:
-            writer.writerow(item.csv_report_row)
+            # todo: make it write one of a variety of row types
+            #writer.writerow(OrderItem.csv_report_header_row(report_type))
+            writer.writerow(item.csv_report_row(report_type))
 
     @classmethod
-    def csv_report_header_row(cls):
+    def csv_report_header_row(cls, report_type):
         """
         Returns the "header" row for a csv report of purchases
         """
-        return [
-            "Purchase Time",
-            "Order ID",
-            "Status",
-            "Quantity",
-            "Unit Cost",
-            "Total Cost",
-            "Currency",
-            "Description",
-            "Comments"
-        ]
+        if report_type == "itemized_purchase_report":
+            return [
+                "Purchase Time",
+                "Order ID",
+                "Status",
+                "Quantity",
+                "Unit Cost",
+                "Total Cost",
+                "Currency",
+                "Description",
+                "Comments"
+            ]
+        elif report_type == "refund_report":
+            return [
+                "Order Number",
+                "Customer Name",
+                "Date of Original Transaction",
+                "Date of Refund",
+                "Amount of Refund",
+                "Service Fees (if any)",
+            ]
+        elif report_type == "university_revenue_share":
+            return [
+                "University",
+                "Course",
+                "Number of Transactions",
+                "Total Payments Collected",
+                "Service Fees (if any)",
+                "Number of Successful Refunds",
+                "Total Amount of Refunds",
+                # note this is restricted by a date range
+            ]
+        elif report_type == "certificate_status":
+            return [
+                "University",
+                "Course",
+                "Total Enrolled",
+                "Audit Enrollment",
+                "Honor Code Enrollment",
+                "Verified Enrollment",
+                "Gross Revenue",
+                "Gross Revenue over the Minimum",
+                "Number of Verified over the Minimum",
+                "Number of Refunds",
+                "Dollars Refunded",
+            ]
+        else:
+            # TODO return error
+            return
 
-    @property
-    def csv_report_row(self):
+    #@property
+    def csv_report_row(self, report_type):
         """
         Returns an array which can be fed into csv.writer to write out one csv row
         """
-        return [
-            self.fulfilled_time,
-            self.order_id,  # pylint: disable=no-member
-            self.status,
-            self.qty,
-            self.unit_cost,
-            self.line_cost,
-            self.currency,
-            self.line_desc,
-            self.report_comments,
-        ]
+        if report_type == "itemized_purchase_report":
+            return [
+                self.fulfilled_time,
+                self.order_id,  # pylint: disable=no-member
+                self.status,
+                self.qty,
+                self.unit_cost,
+                self.line_cost,
+                self.currency,
+                self.line_desc,
+                self.report_comments,
+            ]
+        elif report_type == "refund_report":
+            return [
+                self.order_id,
+                self.user.name,
+                self.fulfilled_time,
+                self.line_cost,
+                self.refund_requested_time, # actually think I need to use refund_fulfilled here
+                # TODO do I need a service fees field?
+            ]
+        else:
+            # TODO errors
+            return
 
     @property
     def pk_with_subclass(self):

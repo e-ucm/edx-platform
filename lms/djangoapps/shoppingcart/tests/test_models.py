@@ -353,11 +353,13 @@ class PurchaseReportTest(ModuleStoreTestCase):
         self.now = datetime.datetime.now(pytz.UTC)
 
     def test_purchased_items_btw_dates(self):
-        purchases = OrderItem.purchased_items_btw_dates(self.now - self.FIVE_MINS, self.now + self.FIVE_MINS)
+        # TODO test multiple report types
+        report_type = "itemized_purchase_report"
+        purchases = OrderItem.purchased_items_btw_dates(report_type, self.now - self.FIVE_MINS, self.now + self.FIVE_MINS)
         self.assertEqual(len(purchases), 2)
         self.assertIn(self.reg.orderitem_ptr, purchases)
         self.assertIn(self.cert_item.orderitem_ptr, purchases)
-        no_purchases = OrderItem.purchased_items_btw_dates(self.now + self.FIVE_MINS,
+        no_purchases = OrderItem.purchased_items_btw_dates(report_type, self.now + self.FIVE_MINS,
                                                            self.now + self.FIVE_MINS + self.FIVE_MINS)
         self.assertFalse(no_purchases)
 
@@ -376,13 +378,15 @@ class PurchaseReportTest(ModuleStoreTestCase):
         # coerce the purchase times to self.test_time so that the test can match.
         # It's pretty hard to patch datetime.datetime b/c it's a python built-in, which is immutable, so we
         # make the times match this way
-        for item in OrderItem.purchased_items_btw_dates(self.now - self.FIVE_MINS, self.now + self.FIVE_MINS):
+        # TODO test multiple report types
+        report_type = "itemized_purchase_report"
+        for item in OrderItem.purchased_items_btw_dates(report_type, self.now - self.FIVE_MINS, self.now + self.FIVE_MINS):
             item.fulfilled_time = self.test_time
             item.save()
 
         # add annotation to the
         csv_file = StringIO.StringIO()
-        OrderItem.csv_purchase_report_btw_dates(csv_file, self.now - self.FIVE_MINS, self.now + self.FIVE_MINS)
+        OrderItem.csv_purchase_report_btw_dates(report_type, csv_file, self.now - self.FIVE_MINS, self.now + self.FIVE_MINS)
         csv = csv_file.getvalue()
         csv_file.close()
         # Using excel mode csv, which automatically ends lines with \r\n, so need to convert to \n
