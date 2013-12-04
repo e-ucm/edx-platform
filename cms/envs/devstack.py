@@ -55,6 +55,12 @@ DEBUG_TOOLBAR_CONFIG = {
 # Stacktraces slow down page loads drastically (for pages with lots of queries).
 DEBUG_TOOLBAR_MONGO_STACKTRACES = False
 
+########################### VERIFIED CERTIFICATES #################################
+
+FEATURES['AUTOMATIC_VERIFY_STUDENT_IDENTITY_FOR_TESTING'] = True
+FEATURES['ENABLE_PAYMENT_FAKE'] = True
+CC_PROCESSOR['CyberSource']['PURCHASE_ENDPOINT'] = '/shoppingcart/payment_fake/'
+
 ###############################################################################
 # Lastly, see if the developer has any local overrides.
 try:

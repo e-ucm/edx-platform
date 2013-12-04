@@ -114,6 +114,7 @@ class VerifiedView(View):
             chosen_price = verify_mode.min_price.format("{:g}")
 
         course = course_from_id(course_id)
+        from nose.tools import set_trace; set_trace()
         context = {
             "course_id": course_id,
             "course_name": course.display_name_with_default,
@@ -132,6 +133,7 @@ def create_order(request):
     """
     Submit PhotoVerification and create a new Order for this verified cert
     """
+    from nose.tools import set_trace; set_trace()
     if not SoftwareSecurePhotoVerification.user_has_valid_or_pending(request.user):
         attempt = SoftwareSecurePhotoVerification(user=request.user)
         b64_face_image = request.POST['face_image'].split(",")[1]
