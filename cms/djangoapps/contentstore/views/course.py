@@ -187,9 +187,9 @@ def course_index(request, course_id, branch, version_guid, block):
         'lms_link': lms_link,
         'sections': sections,
         'course_graders': json.dumps(
-            CourseGradingModel.fetch(course.location).graders
+            CourseGradingModel.fetch(locator).graders
         ),
-        'parent_locator': course.location,
+        'parent_locator': locator,
         'new_section_category': 'chapter',
         'new_subsection_category': 'sequential',
         'new_unit_category': 'vertical',
