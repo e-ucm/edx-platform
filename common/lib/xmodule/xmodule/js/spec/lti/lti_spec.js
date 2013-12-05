@@ -192,7 +192,7 @@
                     expect($.postWithPrefix).toHaveBeenCalledWith(
                         lti.ajaxUrl + '/regenerate_signature',
                         {},
-                        lti.handleAjaxUpdateSignature
+                        jasmine.any(Function)
                     );
 
                     expect(lti.handleAjaxUpdateSignature)
