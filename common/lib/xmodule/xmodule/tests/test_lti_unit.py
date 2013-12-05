@@ -304,29 +304,28 @@ class LTIModuleTest(LogicTest):
         with self.assertRaises(LTIError):
             self.xmodule.get_client_key_secret()
 
+    @patch('xmodule.lti_module.signature.verify_hmac_sha1')
     @patch('xmodule.lti_module.LTIModule.get_client_key_secret', return_value=('test_client_key', u'test_client_secret'))
-    def test_successful_verify_oauth_body_sign(self, get_key_secret):
+    def test_successful_verify_oauth_body_sign(self, get_key_secret, mocked_verify):
         """
         Successful oauth signing verify.
         """
-        with patch('xmodule.lti_module.signature.verify_hmac_sha1') as mocked_verify:
-            mocked_verify.return_value = True
-            try:
-                self.xmodule.verify_oauth_body_sign(self.get_signed_mock_request())
-            except LTIError:
-                self.fail("verify_oauth_body_sign() raised LTIError unexpectedly!")
+        mocked_verify.return_value = True
+        try:
+            self.xmodule.verify_oauth_body_sign(self.get_signed_mock_request())
+        except LTIError:
+            self.fail("verify_oauth_body_sign() raised LTIError unexpectedly!")
 
-
+    @patch('xmodule.lti_module.signature.verify_hmac_sha1')
     @patch('xmodule.lti_module.LTIModule.get_client_key_secret', return_value=('test_client_key', u'test_client_secret'))
-    def test_failed_verify_oauth_body_sign(self, get_key_secret):
+    def test_failed_verify_oauth_body_sign(self, get_key_secret, mocked_verify):
         """
         Oauth signing verify fail.
         """
-        with patch('xmodule.lti_module.signature.verify_hmac_sha1') as mocked_verify:
-            mocked_verify.return_value = False
-            with self.assertRaises(LTIError):
-                req = self.get_signed_mock_request()
-                self.xmodule.verify_oauth_body_sign(req)
+        mocked_verify.return_value = False
+        with self.assertRaises(LTIError):
+            req = self.get_signed_mock_request()
+            self.xmodule.verify_oauth_body_sign(req)
 
     def get_signed_mock_request(self):
         """
