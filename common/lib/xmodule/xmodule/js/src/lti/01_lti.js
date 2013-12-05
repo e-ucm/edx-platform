@@ -28,8 +28,14 @@
  * ~ Robert M. Pirsig
  */
 
+(function (requirejs, require, define) {
+
 // JavaScript LTI XModule
-window.LTI = (function ($, undefined) {
+define(
+'lti/01_lti.js',
+[],
+function () {
+
     var LTI = LTIConstructor;
 
     LTI.prototype = {
@@ -156,4 +162,6 @@ window.LTI = (function ($, undefined) {
             console.log('[LTI info]: ERROR. Could not update signature.');
         }
     }
-}).call(this, window.jQuery);
+});
+
+}(RequireJS.requirejs, RequireJS.require, RequireJS.define));

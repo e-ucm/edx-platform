@@ -175,7 +175,12 @@ class LTIModule(LTIFields, XModule):
         Otherwise error message from LTI provider is generated.
     """
 
-    js = {'js': [resource_string(__name__, 'js/src/lti/lti.js')]}
+    js = {
+        'js': [
+            resource_string(__name__, 'js/src/lti/01_lti.js'),
+            resource_string(__name__, 'js/src/lti/02_main.js')
+        ]
+    }
     css = {'scss': [resource_string(__name__, 'css/lti/lti.scss')]}
     js_module_name = "LTI"
 
