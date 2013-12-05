@@ -131,10 +131,14 @@ function () {
 
     // Request form the server a new OAuth signature.
     function getNewSignature() {
+        var _this = this;
+
         $.postWithPrefix(
             this.ajaxUrl + '/regenerate_signature',
             {},
-            this.handleAjaxUpdateSignature
+            function (response) {
+                _this.handleAjaxUpdateSignature(response);
+            }
         );
     }
 
