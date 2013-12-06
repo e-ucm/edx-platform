@@ -7,6 +7,7 @@ class @MarkdownEditingDescriptor extends XModule.Descriptor
   @selectTemplate: "[[incorrect, (correct), incorrect]]\n"
   @headerTemplate: "Header\n=====\n"
   @explanationTemplate: "[explanation]\nShort explanation\n[explanation]\n"
+  @eadventureTemplate: "Éste es un juego eadventure\n"
 
   constructor: (element) ->
     @element = element
@@ -74,11 +75,13 @@ class @MarkdownEditingDescriptor extends XModule.Descriptor
     switch $(e.currentTarget).attr('class')
       when "multiple-choice-button" then revisedSelection = MarkdownEditingDescriptor.insertMultipleChoice(selection)
       when "string-button" then revisedSelection = MarkdownEditingDescriptor.insertStringInput(selection)
-      when "number-button" then revisedSelection = MarkdownEditingDescriptor.insertNumberInput(selection)
+      when "number-button" then revisedSelection = MarkdownEditingDescriptor.insertNumberInput(selection)	
       when "checks-button" then revisedSelection = MarkdownEditingDescriptor.insertCheckboxChoice(selection)
       when "dropdown-button" then revisedSelection = MarkdownEditingDescriptor.insertSelect(selection)
       when "header-button" then revisedSelection = MarkdownEditingDescriptor.insertHeader(selection)
       when "explanation-button" then revisedSelection = MarkdownEditingDescriptor.insertExplanation(selection)
+      when "eadventure-button" then revisedSelection = MarkdownEditingDescriptor.insertEadventure(selection)	  
+
       else # ignore click
 
     if revisedSelection != null
@@ -168,6 +171,9 @@ class @MarkdownEditingDescriptor extends XModule.Descriptor
   @insertExplanation: (selectedText) ->
     return MarkdownEditingDescriptor.insertGenericInput(selectedText, '[explanation]\n', '\n[explanation]', MarkdownEditingDescriptor.explanationTemplate)
 
+  @insertEadventure: (selectedText) ->
+    return MarkdownEditingDescriptor.insertGenericInput(selectedText, '[eadventure]\n', '\n[eadventure]', MarkdownEditingDescriptor.eadventureTemplate)
+	
   @insertGenericInput: (selectedText, lineStart, lineEnd, template) ->
     if selectedText.length > 0
       # TODO: should this insert a newline afterwards?
@@ -228,35 +234,24 @@ class @MarkdownEditingDescriptor extends XModule.Descriptor
       });
 
       // replace string and numerical
-      xml = xml.replace(/(^\=\s*(.*?$)(\n*or\=\s*(.*?$))*)+/gm, function(match, p) {
-        var string,
-            answersList = p.replace(/^(or)?=\s*/gm, '').split('\n'),
-            floatValue = parseFloat(answersList[0]);
-
+      xml = xml.replace(/^\=\s*(.*?$)/gm, function(match, p) {
+        var string;
+        var floatValue = parseFloat(p);
         if(!isNaN(floatValue)) {
-          // Tries to extract parameters from string like 'expr +- tolerance'
-          var params = /(.*?)\+\-\s*(.*?$)/.exec(answersList[0]),
-              answer = answersList[0].replace(/\s+/g, '');
+          var params = /(.*?)\+\-\s*(.*?$)/.exec(p);
           if(params) {
-            answer = params[1].replace(/\s+/g, '');
-            string = '<numericalresponse answer="' + answer + '">\n';
+            string = '<numericalresponse answer="' + floatValue + '">\n';
             string += '  <responseparam type="tolerance" default="' + params[2] + '" />\n';
           } else {
-            string = '<numericalresponse answer="' + answer + '">\n';
+            string = '<numericalresponse answer="' + floatValue + '">\n';
           }
           string += '  <formulaequationinput />\n';
           string += '</numericalresponse>\n\n';
         } else {
-            var answers = [];
-
-            for(var i = 0; i < answersList.length; i++) {
-                answers.push(answersList[i])
-            }
-
-            string = '<stringresponse answer="' + answers.join('_or_') + '" type="ci">\n  <textline size="20"/>\n</stringresponse>\n\n';
+          string = '<stringresponse answer="' + p + '" type="ci">\n  <textline size="20"/>\n</stringresponse>\n\n';
         }
         return string;
-    });
+      });
 
       // replace selects
       xml = xml.replace(/\[\[(.+?)\]\]/g, function(match, p) {
@@ -273,30 +268,24 @@ class @MarkdownEditingDescriptor extends XModule.Descriptor
         selectString += '</optionresponse>\n\n';
         return selectString;
       });
-
+      
       // replace explanations
       xml = xml.replace(/\[explanation\]\n?([^\]]*)\[\/?explanation\]/gmi, function(match, p1) {
           var selectString = '<solution>\n<div class="detailed-solution">\nExplanation\n\n' + p1 + '\n</div>\n</solution>';
           return selectString;
       });
 
-      // replace code blocks
-      xml = xml.replace(/\[code\]\n?([^\]]*)\[\/?code\]/gmi, function(match, p1) {
-          var selectString = '<pre><code>\n' + p1 + '</code></pre>';
-          return selectString;
-      });
-
-      // split scripts and preformatted sections, and wrap paragraphs
-      var splits = xml.split(/(\<\/?(?:script|pre).*?\>)/g);
+      // split scripts and wrap paragraphs
+      var splits = xml.split(/(\<\/?script.*?\>)/g);
       var scriptFlag = false;
       for(var i = 0; i < splits.length; i++) {
-        if(/\<(script|pre)/.test(splits[i])) {
+        if(/\<script/.test(splits[i])) {
           scriptFlag = true;
         }
         if(!scriptFlag) {
           splits[i] = splits[i].replace(/(^(?!\s*\<|$).*$)/gm, '<p>$1</p>');
         }
-        if(/\<\/(script|pre)/.test(splits[i])) {
+        if(/\<\/script/.test(splits[i])) {
           scriptFlag = false;
         }
       }
@@ -304,7 +293,7 @@ class @MarkdownEditingDescriptor extends XModule.Descriptor
 
       // rid white space
       xml = xml.replace(/\n\n\n/g, '\n');
-
+      
       // surround w/ problem tag
       xml = '<problem>\n' + xml + '\n</problem>';
 
