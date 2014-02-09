@@ -1,7 +1,7 @@
 JS_TEST_SUITES = {
     'lms' => 'lms/static/js_test.yml',
     'cms' => 'cms/static/js_test.yml',
-    # 'cms-squire' => 'cms/static/js_test_squire.yml',
+    'cms-squire' => 'cms/static/js_test_squire.yml',
     'xmodule' => 'common/lib/xmodule/xmodule/js/js_test.yml',
     'common' => 'common/static/js_test.yml',
 }
@@ -40,7 +40,7 @@ def js_test_tool(env, command, do_coverage)
         cmd += " --coverage-xml #{report_dir}"
     end
 
-    test_sh(cmd)
+    test_sh("javascript", cmd)
 end
 
 # Print a list of js_test commands for

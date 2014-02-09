@@ -7,7 +7,6 @@ from .aws import * # pylint: disable=wildcard-import, unused-wildcard-import
 DEBUG = True
 USE_I18N = True
 TEMPLATE_DEBUG = True
-
 # By default don't use a worker, execute tasks as if they were local functions
 CELERY_ALWAYS_EAGER = True
 
@@ -46,13 +45,19 @@ DEBUG_TOOLBAR_PANELS = (
 )
 
 DEBUG_TOOLBAR_CONFIG = {
-    'INTERCEPT_REDIRECTS': False
+    'INTERCEPT_REDIRECTS': False,
+    'SHOW_TOOLBAR_CALLBACK': lambda _: True,
 }
 
 ########################### PIPELINE #################################
 
 PIPELINE_SASS_ARGUMENTS = '--debug-info --require {proj_dir}/static/sass/bourbon/lib/bourbon.rb'.format(proj_dir=PROJECT_ROOT)
 
+########################### VERIFIED CERTIFICATES #################################
+
+FEATURES['AUTOMATIC_VERIFY_STUDENT_IDENTITY_FOR_TESTING'] = True
+FEATURES['ENABLE_PAYMENT_FAKE'] = True
+CC_PROCESSOR['CyberSource']['PURCHASE_ENDPOINT'] = '/shoppingcart/payment_fake/'
 
 #####################################################################
 # Lastly, see if the developer has any local overrides.

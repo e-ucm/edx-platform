@@ -4,7 +4,7 @@ sessions. Assumes structure:
 
 /envroot/
         /db   # This is where it'll write the database file
-        /mitx # The location of this repo
+        /edx-platform  # The location of this repo
         /log  # Where we're going to write log files
 """
 
@@ -16,13 +16,7 @@ from .common import *
 from logsettings import get_logger_config
 
 DEBUG = True
-USE_I18N = True
-# For displaying the dummy text, we need to provide a language mapping.
-LANGUAGES = (
-    ('eo', 'Esperanto'),
-)
 TEMPLATE_DEBUG = True
-
 
 FEATURES['DISABLE_START_DATES'] = False
 FEATURES['ENABLE_SQL_TRACKING_LOGS'] = True
@@ -52,10 +46,12 @@ LOGGING = get_logger_config(ENV_ROOT / "log",
                             dev_env=True,
                             debug=True)
 
+# If there is a database called 'read_replica', you can use the use_read_replica_if_available
+# function in util/query.py, which is useful for very large database reads
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': ENV_ROOT / "db" / "mitx.db",
+        'NAME': ENV_ROOT / "db" / "edx.db",
     }
 }
 
@@ -64,7 +60,7 @@ CACHES = {
     # In staging/prod envs, the sessions also live here.
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'mitx_loc_mem_cache',
+        'LOCATION': 'edx_loc_mem_cache',
         'KEY_FUNCTION': 'util.memcache.safe_key',
     },
 
@@ -85,7 +81,11 @@ CACHES = {
         'LOCATION': '/var/tmp/mongo_metadata_inheritance',
         'TIMEOUT': 300,
         'KEY_FUNCTION': 'util.memcache.safe_key',
-    }
+    },
+    'loc_cache': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'edx_location_mem_cache',
+    },
 }
 
 
@@ -126,6 +126,8 @@ SUBDOMAIN_BRANDING = {
     'mit': 'MITx',
     'berkeley': 'BerkeleyX',
     'harvard': 'HarvardX',
+    'openedx': 'openedx',
+    'edge': 'edge',
 }
 
 # List of `university` landing pages to display, even though they may not
@@ -158,9 +160,9 @@ if os.path.isdir(DATA_DIR):
     ]
 
 
-################################# mitx revision string  #####################
+################################# edx-platform revision string  #####################
 
-MITX_VERSION_STRING = os.popen('cd %s; git describe' % REPO_ROOT).read().strip()
+EDX_PLATFORM_VERSION_STRING = os.popen('cd %s; git describe' % REPO_ROOT).read().strip()
 
 ############################ Open ended grading config  #####################
 
@@ -200,7 +202,7 @@ OPENID_PROVIDER_TRUSTED_ROOTS = ['*']
 
 ######################## MIT Certificates SSL Auth ############################
 
-FEATURES['AUTH_USE_MIT_CERTIFICATES'] = True
+FEATURES['AUTH_USE_CERTIFICATES'] = False
 
 ################################# CELERY ######################################
 

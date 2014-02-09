@@ -2,6 +2,7 @@ require 'digest/md5'
 require 'sys/proctable'
 require 'colorize'
 require 'timeout'
+require 'net/http'
 
 def find_executable(exec)
     path = %x(which #{exec}).strip
@@ -55,38 +56,28 @@ end
 def background_process(command, logfile=nil)
     spawn_opts = {:pgroup => true}
     if !logfile.nil?
-        puts "Running '#{command.join(' ')}', redirecting output to #{logfile}".red
+        puts "Running '#{command.join(' ')}', redirecting output to #{logfile}"
         spawn_opts[[:err, :out]] = [logfile, 'a']
     end
     pid = Process.spawn({}, *command, spawn_opts)
     command = [*command]
 
     at_exit do
-        puts "Ending process and children"
         pgid = Process.getpgid(pid)
         begin
             Timeout.timeout(5) do
-                puts "Interrupting process group #{pgid}"
                 Process.kill(:SIGINT, -pgid)
-                puts "Waiting on process group #{pgid}"
                 Process.wait(-pgid)
-                puts "Done waiting on process group #{pgid}"
             end
         rescue Timeout::Error
             begin
                 Timeout.timeout(5) do
-                    puts "Terminating process group #{pgid}"
                     Process.kill(:SIGTERM, -pgid)
-                    puts "Waiting on process group #{pgid}"
                     Process.wait(-pgid)
-                    puts "Done waiting on process group #{pgid}"
                 end
             rescue Timeout::Error
-                puts "Killing process group #{pgid}"
                 Process.kill(:SIGKILL, -pgid)
-                puts "Waiting on process group #{pgid}"
                 Process.wait(-pgid)
-                puts "Done waiting on process group #{pgid}"
             end
         end
     end
@@ -103,17 +94,41 @@ def singleton_process(command, logfile=nil)
     end
 end
 
+# Wait for a server to respond with status 200 at "/"
+def wait_for_server(server, port)
+    attempts = 0
+    begin
+        http = Net::HTTP.start(server, port, {open_timeout: 10, read_timeout: 10})
+        response = http.head("/")
+        response.code == "200"
+        true
+    rescue
+        sleep(1)
+        attempts += 1
+        if attempts < 20
+            retry
+        else
+            false
+        end
+    end
+end
+
 def environments(system)
     Dir["#{system}/envs/**/*.py"].select{|file| ! (/__init__.py$/ =~ file)}.map do |env_file|
         env_file.gsub("#{system}/envs/", '').gsub(/\.py/, '').gsub('/', '.')
     end
 end
 
-$failed_tests = 0
+
+$failed_tests = []
 
 # Run sh on args. If TESTS_FAIL_FAST is set, then stop on the first shell failure.
 # Otherwise, a final task will be added that will fail if any tests have failed
-def test_sh(*args)
+def test_sh(name, *args)
+    puts("\n=======================================".green)
+    puts("Running #{name} tests".green)
+    puts("=======================================".green)
+
     sh(*args) do |ok, res|
         if ok
             return
@@ -122,17 +137,25 @@ def test_sh(*args)
         if ENV['TESTS_FAIL_FAST']
             fail("Test failed!")
         else
-            $failed_tests += 1
+            $failed_tests << name
         end
     end
+
+    puts("\n=======================================\n".green)
 end
 
 # Add a task after all other tasks that fails if any tests have failed
 if !ENV['TESTS_FAIL_FAST']
     task :fail_tests do
-        fail("#{$failed_tests} tests failed!") if $failed_tests > 0
+        if $failed_tests.length > 0
+            puts("=======================================".red)
+            puts("Tests failed in these test suites:".red)
+            $failed_tests.each do |test|
+                puts("* #{test}".red)
+            end
+            exit 1
+        end
     end
 
     Rake.application.top_level_tasks << :fail_tests
 end
-

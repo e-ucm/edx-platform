@@ -5,6 +5,7 @@ class @Sequence
     @num_contents = @contents.length
     @id = @el.data('id')
     @ajaxUrl = @el.data('ajax-url')
+    @base_page_title = " | " + document.title
     @initProgress()
     @bind()
     @render parseInt(@el.data('position'))
@@ -18,6 +19,11 @@ class @Sequence
   initProgress: ->
     @progressTable = {}  # "#problem_#{id}" -> progress
 
+  updatePageTitle: ->
+    # update the page title to include the current section
+    position_link = @link_for(@position)
+    if position_link and position_link.data('title')
+        document.title = position_link.data('title') + @base_page_title
 
   hookUpProgressEvent: ->
     $('.problems-wrapper').bind 'progressChanged', @updateProgress
@@ -84,7 +90,7 @@ class @Sequence
     if @position != new_position
       if @position != undefined
         @mark_visited @position
-        modx_full_url = '#{@ajaxUrl}/goto_position'
+        modx_full_url = "#{@ajaxUrl}/goto_position"
         $.postWithPrefix modx_full_url, position: new_position
 
       # On Sequence change, fire custom event "sequence:change" on element.
@@ -100,6 +106,7 @@ class @Sequence
       @position = new_position
       @toggleArrows()
       @hookUpProgressEvent()
+      @updatePageTitle()
 
       sequence_links = @$('#seq_content a.seqnav')
       sequence_links.click @goto
@@ -131,7 +138,9 @@ class @Sequence
 
       @render new_position
     else
-      alert 'Sequence error! Cannot navigate to tab ' + new_position + 'in the current SequenceModule. Please contact the course staff.'
+      alert_template = gettext("Sequence error! Cannot navigate to tab %(tab_name)s in the current SequenceModule. Please contact the course staff.")
+      alert_text = interpolate(alert_text, {tab_name: new_position}, true)
+      alert alert_text
 
   next: (event) => @_change_sequential 'seq_next', event
   previous: (event) => @_change_sequential 'seq_prev', event

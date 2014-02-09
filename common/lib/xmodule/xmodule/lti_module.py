@@ -42,6 +42,7 @@ import hashlib
 import base64
 import urllib
 import textwrap
+import json
 from lxml import etree
 from webob import Response
 import mock
@@ -54,7 +55,6 @@ from xmodule.course_module import CourseDescriptor
 from pkg_resources import resource_string
 from xblock.core import String, Scope, List, XBlock
 from xblock.fields import Boolean, Float
-
 
 log = logging.getLogger(__name__)
 
@@ -89,7 +89,13 @@ class LTIFields(object):
     custom_parameters = List(help="Custom parameters (vbid, book_location, etc..)", scope=Scope.settings)
     open_in_a_new_page = Boolean(help="Should LTI be opened in new page?", default=True, scope=Scope.settings)
     graded = Boolean(help="Grades will be considered in overall score.", default=False, scope=Scope.settings)
-    weight = Float(help="Weight for student grades.", default=1.0, scope=Scope.settings)
+    weight = Float(
+        help="Weight for student grades.",
+        default=1.0,
+        scope=Scope.settings,
+        values={"min": 0},
+    )
+    has_score = Boolean(help="Does this LTI module have score?", default=False, scope=Scope.settings)
 
 
 class LTIModule(LTIFields, XModule):
@@ -173,15 +179,9 @@ class LTIModule(LTIFields, XModule):
         Otherwise error message from LTI provider is generated.
     """
 
-    js = {'js': [resource_string(__name__, 'js/src/lti/lti.js')]}
     css = {'scss': [resource_string(__name__, 'css/lti/lti.scss')]}
-    js_module_name = "LTI"
 
-    def get_html(self):
-        """
-        Renders parameters to template.
-        """
-
+    def get_input_fields(self):
         # LTI provides a list of default parameters that might be passed as
         # part of the POST data. These parameters should not be prefixed.
         # Likewise, The creator of an LTI link can add custom key/value parameters
@@ -239,13 +239,18 @@ class LTIModule(LTIFields, XModule):
 
             custom_parameters[unicode(param_name)] = unicode(param_value)
 
-        input_fields = self.oauth_params(
+        return self.oauth_params(
             custom_parameters,
             client_key,
             client_secret,
         )
-        context = {
-            'input_fields': input_fields,
+
+    def get_context(self):
+        """
+        Returns a context.
+        """
+        return {
+            'input_fields': self.get_input_fields(),
 
             # These parameters do not participate in OAuth signing.
             'launch_url': self.launch_url.strip(),
@@ -253,9 +258,22 @@ class LTIModule(LTIFields, XModule):
             'element_class': self.category,
             'open_in_a_new_page': self.open_in_a_new_page,
             'display_name': self.display_name,
+            'form_url': self.runtime.handler_url(self, 'preview_handler').rstrip('/?'),
         }
 
-        return self.system.render_template('lti.html', context)
+    def get_html(self):
+        """
+        Renders parameters to template.
+        """
+        return self.system.render_template('lti.html', self.get_context())
+
+    @XBlock.handler
+    def preview_handler(self, _, __):
+        """
+        This is called to get context with new oauth params to iframe.
+        """
+        template = self.system.render_template('lti_form.html', self.get_context())
+        return Response(template, content_type='text/html')
 
     def get_user_id(self):
         user_id = self.runtime.anonymous_student_id
@@ -265,11 +283,18 @@ class LTIModule(LTIFields, XModule):
     def get_outcome_service_url(self):
         """
         Return URL for storing grades.
+
+        To test LTI on sandbox we must use http scheme.
+
+        While testing locally and on Jenkins, mock_lti_server use http.referer
+        to obtain scheme, so it is ok to have http(s) anyway.
         """
-        uri = 'http://{host}{path}'.format(
-                host=self.system.hostname,
-                path=self.runtime.handler_url(self, 'grade_handler', thirdparty=True).rstrip('/?')
-            )
+        scheme = 'http' if 'sandbox' in self.system.hostname else 'https'
+        uri = '{scheme}://{host}{path}'.format(
+            scheme=scheme,
+            host=self.system.hostname,
+            path=self.runtime.handler_url(self, 'grade_handler', thirdparty=True).rstrip('/?')
+        )
         return uri
 
     def get_resource_link_id(self):
@@ -302,6 +327,25 @@ class LTIModule(LTIFields, XModule):
         """
         return u':'.join(urllib.quote(i) for i in (self.lti_id, self.get_resource_link_id(), self.get_user_id()))
 
+    def get_course(self):
+        """
+        Return course by course id.
+        """
+        course_location = CourseDescriptor.id_to_location(self.course_id)
+        course = self.descriptor.runtime.modulestore.get_item(course_location)
+        return course
+
+    @property
+    def role(self):
+        """
+        Get system user role and convert it to LTI role.
+        """
+        roles = {
+            'student': u'Student',
+            'staff': u'Administrator',
+            'instructor': u'Instructor',
+        }
+        return roles.get(self.system.get_user_role(), u'Student')
 
     def oauth_params(self, custom_parameters, client_key, client_secret):
         """
@@ -325,14 +369,18 @@ class LTIModule(LTIFields, XModule):
             u'launch_presentation_return_url': '',
             u'lti_message_type': u'basic-lti-launch-request',
             u'lti_version': 'LTI-1p0',
-            u'role': u'student',
+            u'roles': self.role,
 
             # Parameters required for grading:
             u'resource_link_id': self.get_resource_link_id(),
-            u'lis_outcome_service_url': self.get_outcome_service_url(),
             u'lis_result_sourcedid': self.get_lis_result_sourcedid(),
 
         }
+
+        if self.has_score:
+            body.update({
+                u'lis_outcome_service_url': self.get_outcome_service_url()
+            })
 
         # Appending custom parameter for signing.
         body.update(custom_parameters)
@@ -376,7 +424,7 @@ oauth_consumer_key="", oauth_signature="frVp4JuvT1mVXlxktiAUjQ7%2F1cw%3D"'}
         return params
 
     def max_score(self):
-        return self.weight
+        return self.weight if self.has_score else None
 
 
     @XBlock.handler
@@ -415,7 +463,7 @@ oauth_consumer_key="", oauth_signature="frVp4JuvT1mVXlxktiAUjQ7%2F1cw%3D"'}
 
         Example of correct/incorrect answer XML body:: see response_xml_template.
         """
-        response_xml_template = textwrap.dedent("""
+        response_xml_template = textwrap.dedent("""\
             <?xml version="1.0" encoding="UTF-8"?>
             <imsx_POXEnvelopeResponse xmlns = "http://www.imsglobal.org/services/ltiv1p1/xsd/imsoms_v1p0">
                 <imsx_POXHeader>
@@ -456,21 +504,32 @@ oauth_consumer_key="", oauth_signature="frVp4JuvT1mVXlxktiAUjQ7%2F1cw%3D"'}
 
         try:
             imsx_messageIdentifier, sourcedId, score, action = self.parse_grade_xml_body(request.body)
-        except Exception:
+        except Exception as e:
+            error_message = "Request body XML parsing error: " + escape(e.message)
+            log.debug("[LTI]: " + error_message)
+            failure_values['imsx_description'] = error_message
             return Response(response_xml_template.format(**failure_values), content_type="application/xml")
 
         # Verify OAuth signing.
         try:
             self.verify_oauth_body_sign(request)
-        except (ValueError, LTIError):
+        except (ValueError, LTIError) as e:
             failure_values['imsx_messageIdentifier'] = escape(imsx_messageIdentifier)
+            error_message = "OAuth verification error: " + escape(e.message)
+            failure_values['imsx_description'] = error_message
+            log.debug("[LTI]: " + error_message)
             return Response(response_xml_template.format(**failure_values), content_type="application/xml")
 
-
         real_user = self.system.get_real_user(urllib.unquote(sourcedId.split(':')[-1]))
+        if not real_user:  # that means we can't save to database, as we do not have real user id.
+            failure_values['imsx_messageIdentifier'] = escape(imsx_messageIdentifier)
+            failure_values['imsx_description'] = "User not found."
+            return Response(response_xml_template.format(**failure_values), content_type="application/xml")
+
         if action == 'replaceResultRequest':
             self.system.publish(
-                event={
+                self,
+                {
                     'event_name': 'grade',
                     'value': score * self.max_score(),
                     'max_value': self.max_score(),
@@ -484,9 +543,11 @@ oauth_consumer_key="", oauth_signature="frVp4JuvT1mVXlxktiAUjQ7%2F1cw%3D"'}
                 'imsx_messageIdentifier': escape(imsx_messageIdentifier),
                 'response': '<replaceResultResponse/>'
             }
+            log.debug("[LTI]: Grade is saved.")
             return Response(response_xml_template.format(**values), content_type="application/xml")
 
         unsupported_values['imsx_messageIdentifier'] = escape(imsx_messageIdentifier)
+        log.debug("[LTI]: Incorrect action.")
         return Response(response_xml_template.format(**unsupported_values), content_type='application/xml')
 
 
@@ -515,7 +576,7 @@ oauth_consumer_key="", oauth_signature="frVp4JuvT1mVXlxktiAUjQ7%2F1cw%3D"'}
         # Raise exception if score is not float or not in range 0.0-1.0 regarding spec.
         score = float(score)
         if not 0 <= score <= 1:
-            raise LTIError
+            raise LTIError('score value outside the permitted range of 0-1.')
 
         return imsx_messageIdentifier, sourcedId, score, action
 
@@ -536,7 +597,6 @@ oauth_consumer_key="", oauth_signature="frVp4JuvT1mVXlxktiAUjQ7%2F1cw%3D"'}
         """
 
         client_key, client_secret = self.get_client_key_secret()
-
         headers = {
             'Authorization':unicode(request.headers.get('Authorization')),
             'Content-Type': 'application/x-www-form-urlencoded',
@@ -544,7 +604,7 @@ oauth_consumer_key="", oauth_signature="frVp4JuvT1mVXlxktiAUjQ7%2F1cw%3D"'}
 
         sha1 = hashlib.sha1()
         sha1.update(request.body)
-        oauth_body_hash = base64.b64encode(sha1.hexdigest())
+        oauth_body_hash = base64.b64encode(sha1.digest())
 
         oauth_params = signature.collect_parameters(headers=headers, exclude_oauth_signature=False)
         oauth_headers =dict(oauth_params)
@@ -556,18 +616,16 @@ oauth_consumer_key="", oauth_signature="frVp4JuvT1mVXlxktiAUjQ7%2F1cw%3D"'}
             params=oauth_headers.items(),
             signature=oauth_signature
         )
-        if (oauth_body_hash != oauth_headers.get('oauth_body_hash') or
-            not signature.verify_hmac_sha1(mock_request, client_secret)):
-            raise LTIError
+        if oauth_body_hash != oauth_headers.get('oauth_body_hash'):
+            raise LTIError("OAuth body hash verification is failed.")
+        if not signature.verify_hmac_sha1(mock_request, client_secret):
+            raise LTIError("OAuth signature verification is failed.")
 
     def get_client_key_secret(self):
         """
         Obtains client_key and client_secret credentials from current course.
         """
-        course_id = self.course_id
-        course_location = CourseDescriptor.id_to_location(course_id)
-        course = self.descriptor.runtime.modulestore.get_item(course_location)
-
+        course = self.get_course()
         for lti_passport in course.lti_passports:
             try:
                 lti_id, key, secret = [i.strip() for i in lti_passport.split(':')]
@@ -582,6 +640,6 @@ class LTIDescriptor(LTIFields, MetadataOnlyEditingDescriptor, EmptyDataRawDescri
     """
     Descriptor for LTI Xmodule.
     """
-    has_score = True
     module_class = LTIModule
     grade_handler = module_attr('grade_handler')
+    preview_handler = module_attr('preview_handler')

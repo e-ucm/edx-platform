@@ -16,26 +16,28 @@ from mock import Mock
 from path import path
 
 from xblock.field_data import DictFieldData
+
 from xmodule.x_module import ModuleSystem, XModuleDescriptor, XModuleMixin
 from xmodule.modulestore.inheritance import InheritanceMixin
 from xmodule.mako_module import MakoDescriptorSystem
 from xmodule.error_module import ErrorDescriptor
+from xmodule.modulestore.xml import LocationReader
 
 
+MODULE_DIR = path(__file__).dirname()
 # Location of common test DATA directory
 # '../../../../edx-platform/common/test/data/'
-MODULE_DIR = path(__file__).dirname()
-DATA_DIR = path.joinpath(*MODULE_DIR.splitall()[:-4]) / 'test/data/'
+DATA_DIR = MODULE_DIR.parent.parent.parent.parent / "test" / "data"
 
 
 open_ended_grading_interface = {
-        'url': 'blah/',
-        'username': 'incorrect_user',
-        'password': 'incorrect_pass',
-        'staff_grading' : 'staff_grading',
-        'peer_grading' : 'peer_grading',
-        'grading_controller' : 'grading_controller'
-    }
+    'url': 'blah/',
+    'username': 'incorrect_user',
+    'password': 'incorrect_pass',
+    'staff_grading': 'staff_grading',
+    'peer_grading': 'peer_grading',
+    'grading_controller': 'grading_controller',
+}
 
 
 class TestModuleSystem(ModuleSystem):  # pylint: disable=abstract-method
@@ -75,6 +77,7 @@ def get_test_system(course_id=''):
         open_ended_grading_interface=open_ended_grading_interface,
         course_id=course_id,
         error_descriptor_class=ErrorDescriptor,
+        get_user_role=Mock(is_staff=False),
     )
 
 
@@ -88,6 +91,8 @@ def get_test_descriptor_system():
         error_tracker=Mock(),
         render_template=mock_render_template,
         mixins=(InheritanceMixin, XModuleMixin),
+        field_data=DictFieldData({}),
+        id_reader=LocationReader(),
     )
 
 

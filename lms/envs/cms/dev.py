@@ -8,7 +8,7 @@ Settings for the LMS that runs alongside the CMS on AWS
 
 from ..dev import *
 
-FEATURES['AUTH_USE_MIT_CERTIFICATES'] = False
+FEATURES['AUTH_USE_CERTIFICATES'] = False
 
 SUBDOMAIN_BRANDING['edge'] = 'edge'
 SUBDOMAIN_BRANDING['preview.edge'] = 'edge'
@@ -22,14 +22,8 @@ FEATURES['ENABLE_LMS_MIGRATION'] = False
 
 META_UNIVERSITIES = {}
 
-DOC_STORE_CONFIG = {
-    'host': 'localhost',
-    'db': 'xmodule',
-    'collection': 'modulestore',
-}
-
 modulestore_options = {
-    'default_class': 'xmodule.raw_module.RawDescriptor',
+    'default_class': 'xmodule.hidden_module.HiddenDescriptor',
     'fs_root': DATA_DIR,
     'render_template': 'edxmako.shortcuts.render_to_string',
 }

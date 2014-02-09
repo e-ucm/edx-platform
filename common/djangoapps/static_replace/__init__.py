@@ -19,7 +19,7 @@ def _url_replace_regex(prefix):
     To anyone contemplating making this more complicated:
     http://xkcd.com/1171/
     """
-    return r"""
+    return ur"""
         (?x)                      # flags=re.VERBOSE
         (?P<quote>\\?['"])        # the opening quotes
         (?P<prefix>{prefix})      # the prefix
@@ -119,7 +119,7 @@ def replace_static_urls(text, data_directory, course_id=None, static_asset_path=
         # if we're running with a MongoBacked store course_namespace is not None, then use studio style urls
         elif (not static_asset_path) and course_id and modulestore().get_modulestore_type(course_id) != XML_MODULESTORE_TYPE:
             # first look in the static file pipeline and see if we are trying to reference
-            # a piece of static content which is in the mitx repo (e.g. JS associated with an xmodule)
+            # a piece of static content which is in the edx-platform repo (e.g. JS associated with an xmodule)
 
             exists_in_staticfiles_storage = False
             try:
@@ -152,7 +152,7 @@ def replace_static_urls(text, data_directory, course_id=None, static_asset_path=
         return "".join([quote, url, quote])
 
     return re.sub(
-        _url_replace_regex('(?:{static_url}|/static/)(?!{data_dir})'.format(
+        _url_replace_regex(u'(?:{static_url}|/static/)(?!{data_dir})'.format(
             static_url=settings.STATIC_URL,
             data_dir=static_asset_path or data_directory
         )),

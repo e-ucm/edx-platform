@@ -8,13 +8,11 @@
  *
  *  @exports WordCloudMain
  *
- *  @requires logme
- *
  *  @external d3, $, RequireJS
  */
 
 (function (requirejs, require, define) {
-define('WordCloudMain', ['logme'], function (logme) {
+define('WordCloudMain', [], function () {
 
     /**
      * @function WordCloudMain
@@ -34,8 +32,6 @@ define('WordCloudMain', ['logme'], function (logme) {
 
         this.wordCloudEl = $(el).find('.word_cloud');
 
-	$(".si").css({"font-style": "italic"});
-
         // Get the URL to which we will post the users words.
         this.ajax_url = this.wordCloudEl.data('ajax-url');
 
@@ -52,7 +48,7 @@ define('WordCloudMain', ['logme'], function (logme) {
             _this.ajax_url + '/' + 'get_state', null,
             function (response) {
                 if (response.status !== 'success') {
-                    logme('ERROR: ' + response.error);
+                    console.log('ERROR: ' + response.error);
 
                     return;
                 }
@@ -77,7 +73,7 @@ define('WordCloudMain', ['logme'], function (logme) {
     }; // End-of: var WordCloudMain = function (el) {
 
     /**
-     * @function submitAnswerst
+     * @function submitAnswer
      *
      * Callback to be executed when the user eneter his words. It will send user entries to the
      * server, and upon receiving correct response, will call the function to generate the
@@ -85,20 +81,12 @@ define('WordCloudMain', ['logme'], function (logme) {
      */
     WordCloudMain.prototype.submitAnswer = function () {
         var _this = this,
-            data = {'student_words': [],'student_answer': []};
-    	    
+            data = {'student_words': []};
 
         // Populate the data to be sent to the server with user's words.
         this.wordCloudEl.find('input.input-cloud').each(function (index, value) {
             data.student_words.push($(value).val());
-	    
         });
-	
-	this.wordCloudEl.find('input.marcar:checked').each(function(index, value){
-	data.student_answer.push($(value).val());
-	});
-       
-
 
         // Send the data to the server as an AJAX request. Attach a callback that will
         // be fired on server's response.
@@ -106,7 +94,7 @@ define('WordCloudMain', ['logme'], function (logme) {
             _this.ajax_url + '/' + 'submit', $.param(data),
             function (response) {
                 if (response.status !== 'success') {
-                    logme('ERROR: ' + response.error);
+                    console.log('ERROR: ' + response.error);
 
                     return;
                 }
@@ -239,11 +227,11 @@ define('WordCloudMain', ['logme'], function (logme) {
             );
         }
 
-       /*$.each(response.student_words, function (word, stat) {
+        $.each(response.student_words, function (word, stat) {
             var percent = (response.display_student_percents) ? ' ' + (Math.round(100 * (stat / response.total_count))) + '%' : '';
 
             studentWordsKeys.push('<strong>' + word + '</strong>' + percent);
-        });*/
+        });
         studentWordsStr = '' + studentWordsKeys.join(', ');
 
         cloudSectionEl
@@ -300,5 +288,5 @@ define('WordCloudMain', ['logme'], function (logme) {
 
     return WordCloudMain;
 
-}); // End-of: define('WordCloudMain', ['logme'], function (logme) {
+}); // End-of: define('WordCloudMain', [], function () {
 }(RequireJS.requirejs, RequireJS.require, RequireJS.define)); // End-of: (function (requirejs, require, define) {

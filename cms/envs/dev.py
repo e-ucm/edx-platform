@@ -9,23 +9,12 @@ from .common import *
 from logsettings import get_logger_config
 
 DEBUG = True
-USE_I18N = True
-# For displaying the dummy text, we need to provide a language mapping.
-LANGUAGES = (
-    ('eo', 'Esperanto'),
-)
 TEMPLATE_DEBUG = DEBUG
 LOGGING = get_logger_config(ENV_ROOT / "log",
                             logging_env="dev",
                             tracking_filename="tracking.log",
                             dev_env=True,
                             debug=True)
-
-DOC_STORE_CONFIG = {
-    'host': 'localhost',
-    'db': 'xmodule',
-    'collection': 'modulestore',
-}
 
 modulestore_options = {
     'default_class': 'xmodule.raw_module.RawDescriptor',
@@ -71,7 +60,7 @@ CONTENTSTORE = {
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': ENV_ROOT / "db" / "mitx.db",
+        'NAME': ENV_ROOT / "db" / "edx.db",
     }
 }
 
@@ -108,7 +97,7 @@ CACHES = {
     # In staging/prod envs, the sessions also live here.
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'mitx_loc_mem_cache',
+        'LOCATION': 'edx_loc_mem_cache',
         'KEY_FUNCTION': 'util.memcache.safe_key',
     },
 
@@ -129,7 +118,12 @@ CACHES = {
         'LOCATION': '/var/tmp/mongo_metadata_inheritance',
         'TIMEOUT': 300,
         'KEY_FUNCTION': 'util.memcache.safe_key',
-    }
+    },
+    'loc_cache': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'edx_location_mem_cache',
+    },
+
 }
 
 # Make the keyedcache startup warnings go away

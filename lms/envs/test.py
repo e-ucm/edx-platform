@@ -4,7 +4,7 @@ sessions. Assumes structure:
 
 /envroot/
         /db   # This is where it'll write the database file
-        /mitx # The location of this repo
+        /edx-platform  # The location of this repo
         /log  # Where we're going to write log files
 """
 
@@ -35,6 +35,10 @@ FEATURES['ENABLE_HINTER_INSTRUCTOR_VIEW'] = True
 FEATURES['ENABLE_INSTRUCTOR_BETA_DASHBOARD'] = True
 
 FEATURES['ENABLE_SHOPPING_CART'] = True
+
+# Enable this feature for course staff grade downloads, to enable acceptance tests
+FEATURES['ENABLE_S3_GRADE_DOWNLOADS'] = True
+FEATURES['ALLOW_COURSE_STAFF_GRADE_DOWNLOADS'] = True
 
 # Need wiki for courseware views to work. TODO (vshnayder): shouldn't need it.
 WIKI_ENABLED = True
@@ -69,6 +73,7 @@ COMMON_TEST_DATA_ROOT = COMMON_ROOT / "test" / "data"
 # Where the content data is checked out.  This may not exist on jenkins.
 GITHUB_REPO_ROOT = ENV_ROOT / "data"
 
+USE_I18N = True
 
 XQUEUE_INTERFACE = {
     "url": "http://sandbox-xqueue.edx.org",
@@ -79,7 +84,6 @@ XQUEUE_INTERFACE = {
     "basic_auth": ('anant', 'agarwal'),
 }
 XQUEUE_WAITTIME_BETWEEN_REQUESTS = 5  # seconds
-
 
 # Don't rely on a real staff grading backend
 MOCK_STAFF_GRADING = True
@@ -109,10 +113,6 @@ MODULESTORE = {
     }
 }
 
-# Starting modulestores generates log messages.  If we wait to init modulestores,
-# then those messages will be silenced by the test runner.
-INIT_MODULESTORE_ON_STARTUP = False
-
 CONTENTSTORE = {
     'ENGINE': 'xmodule.contentstore.mongo.MongoContentStore',
     'DOC_STORE_CONFIG': {
@@ -130,7 +130,7 @@ DOC_STORE_CONFIG = {
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': TEST_ROOT / 'db' / 'mitx.db'
+        'NAME': TEST_ROOT / 'db' / 'edx.db'
     },
 
 }
@@ -140,7 +140,7 @@ CACHES = {
     # In staging/prod envs, the sessions also live here.
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'mitx_loc_mem_cache',
+        'LOCATION': 'edx_loc_mem_cache',
         'KEY_FUNCTION': 'util.memcache.safe_key',
     },
 
@@ -161,7 +161,12 @@ CACHES = {
         'LOCATION': '/var/tmp/mongo_metadata_inheritance',
         'TIMEOUT': 300,
         'KEY_FUNCTION': 'util.memcache.safe_key',
-    }
+    },
+    'loc_cache': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'edx_location_mem_cache',
+    },
+
 }
 
 # Dummy secret key for dev
@@ -203,6 +208,10 @@ CC_PROCESSOR['CyberSource']['MERCHANT_ID'] = "edx"
 CC_PROCESSOR['CyberSource']['SERIAL_NUMBER'] = "0123456789012345678901"
 CC_PROCESSOR['CyberSource']['PURCHASE_ENDPOINT'] = "/shoppingcart/payment_fake"
 
+########################### SYSADMIN DASHBOARD ################################
+FEATURES['ENABLE_SYSADMIN_DASHBOARD'] = True
+GIT_REPO_DIR = TEST_ROOT / "course_repos"
+
 ################################# CELERY ######################################
 
 CELERY_ALWAYS_EAGER = True
@@ -217,7 +226,7 @@ STATICFILES_DIRS.append(("uploads", MEDIA_ROOT))
 
 new_staticfiles_dirs = []
 # Strip out any static files that aren't in the repository root
-# so that the tests can run with only the mitx directory checked out
+# so that the tests can run with only the edx-platform directory checked out
 for static_dir in STATICFILES_DIRS:
     # Handle both tuples and non-tuple directory definitions
     try:
@@ -234,6 +243,15 @@ FILE_UPLOAD_HANDLERS = (
     'django.core.files.uploadhandler.MemoryFileUploadHandler',
     'django.core.files.uploadhandler.TemporaryFileUploadHandler',
 )
+
+########################### Server Ports ###################################
+
+# These ports are carefully chosen so that if the browser needs to
+# access them, they will be available through the SauceLabs SSH tunnel
+LETTUCE_SERVER_PORT = 8003
+XQUEUE_PORT = 8040
+YOUTUBE_PORT = 8031
+LTI_PORT = 8765
 
 ################### Make tests faster
 
@@ -254,3 +272,36 @@ PASSWORD_HASHERS = (
 
 import openid.oidutil
 openid.oidutil.log = lambda message, level = 0: None
+
+# set up some testing for microsites
+MICROSITE_CONFIGURATION = {
+    "test_microsite": {
+        "domain_prefix": "testmicrosite",
+        "university": "test_microsite",
+        "platform_name": "Test Microsite",
+        "logo_image_url": "test_microsite/images/header-logo.png",
+        "email_from_address": "test_microsite@edx.org",
+        "payment_support_email": "test_microsite@edx.org",
+        "ENABLE_MKTG_SITE": False,
+        "SITE_NAME": "test_microsite.localhost",
+        "course_org_filter": "TestMicrositeX",
+        "course_about_show_social_links": False,
+        "css_overrides_file": "test_microsite/css/test_microsite.css",
+        "show_partners": False,
+        "show_homepage_promo_video": False,
+        "course_index_overlay_text": "This is a Test Microsite Overlay Text.",
+        "course_index_overlay_logo_file": "test_microsite/images/header-logo.png",
+        "homepage_overlay_html": "<h1>This is a Test Microsite Overlay HTML</h1>"
+    }
+}
+
+if len(MICROSITE_CONFIGURATION.keys()) > 0:
+    enable_microsites(
+        MICROSITE_CONFIGURATION,
+        SUBDOMAIN_BRANDING,
+        VIRTUAL_UNIVERSITIES,
+        microsites_root=COMMON_ROOT / "test" / 'test_microsites'
+    )
+
+######### LinkedIn ########
+LINKEDIN_API['COMPANY_ID'] = '0000000'

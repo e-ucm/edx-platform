@@ -18,6 +18,7 @@ from webob.multidict import MultiDict
 
 from xmodule.open_ended_grading_classes.openendedchild import OpenEndedChild
 from xmodule.open_ended_grading_classes.open_ended_module import OpenEndedModule
+from xmodule.open_ended_grading_classes.self_assessment_module import SelfAssessmentModule
 from xmodule.open_ended_grading_classes.combined_open_ended_modulev1 import CombinedOpenEndedV1Module
 from xmodule.open_ended_grading_classes.grading_service_module import GradingServiceError
 from xmodule.combined_open_ended_module import CombinedOpenEndedModule
@@ -27,7 +28,9 @@ from xmodule.progress import Progress
 from xmodule.tests.test_util_open_ended import (
     DummyModulestore, TEST_STATE_SA_IN,
     MOCK_INSTANCE_STATE, TEST_STATE_SA, TEST_STATE_AI, TEST_STATE_AI2, TEST_STATE_AI2_INVALID,
-    TEST_STATE_SINGLE, TEST_STATE_PE_SINGLE, MockUploadedFile
+    TEST_STATE_SINGLE, TEST_STATE_PE_SINGLE, MockUploadedFile, INSTANCE_INCONSISTENT_STATE,
+    INSTANCE_INCONSISTENT_STATE2, INSTANCE_INCONSISTENT_STATE3, INSTANCE_INCONSISTENT_STATE4,
+    INSTANCE_INCONSISTENT_STATE5
 )
 
 from xblock.field_data import DictFieldData
@@ -251,7 +254,7 @@ class OpenEndedModuleTest(unittest.TestCase):
         self.test_system.open_ended_grading_interface = None
         self.test_system.location = self.location
         self.mock_xqueue = MagicMock()
-        self.mock_xqueue.send_to_queue.return_value = (None, "Message")
+        self.mock_xqueue.send_to_queue.return_value = (0, "Queued")
 
         def constructed_callback(dispatch="score_update"):
             return dispatch
@@ -263,43 +266,86 @@ class OpenEndedModuleTest(unittest.TestCase):
                                                self.definition, self.descriptor, self.static_data, self.metadata)
 
     def test_message_post(self):
-        get = {'feedback': 'feedback text',
-               'submission_id': '1',
-               'grader_id': '1',
-               'score': 3}
-        qtime = datetime.strftime(datetime.now(UTC), xqueue_interface.dateformat)
-        student_info = {'anonymous_student_id': self.test_system.anonymous_student_id,
-                        'submission_time': qtime}
-        contents = {
-            'feedback': get['feedback'],
-            'submission_id': int(get['submission_id']),
-            'grader_id': int(get['grader_id']),
-            'score': get['score'],
-            'student_info': json.dumps(student_info)
-        }
+        """Test message_post() sends feedback to xqueue."""
 
-        result = self.openendedmodule.message_post(get, self.test_system)
+        submission_time = datetime.strftime(datetime.now(UTC), xqueue_interface.dateformat)
+
+        feedback_post = {
+            'feedback': 'feedback text',
+            'submission_id': '1',
+            'grader_id': '1',
+            'score': 3
+        }
+        result = self.openendedmodule.message_post(feedback_post, self.test_system)
         self.assertTrue(result['success'])
+
         # make sure it's actually sending something we want to the queue
-        self.mock_xqueue.send_to_queue.assert_called_with(body=json.dumps(contents), header=ANY)
+        mock_send_to_queue_body_arg = json.loads(self.mock_xqueue.send_to_queue.call_args[1]['body'])
+        self.assertEqual(mock_send_to_queue_body_arg['feedback'], feedback_post['feedback'])
+        self.assertEqual(mock_send_to_queue_body_arg['submission_id'], int(feedback_post['submission_id']))
+        self.assertEqual(mock_send_to_queue_body_arg['grader_id'], int(feedback_post['grader_id']))
+        self.assertEqual(mock_send_to_queue_body_arg['score'], feedback_post['score'])
+        body_arg_student_info = json.loads(mock_send_to_queue_body_arg['student_info'])
+        self.assertEqual(body_arg_student_info['anonymous_student_id'], self.test_system.anonymous_student_id)
+        self.assertGreaterEqual(body_arg_student_info['submission_time'], submission_time)
 
         state = json.loads(self.openendedmodule.get_instance_state())
-        self.assertIsNotNone(state['child_state'], OpenEndedModule.DONE)
+        self.assertEqual(state['child_state'], OpenEndedModule.DONE)
+
+    def test_message_post_fail(self):
+        """Test message_post() if unable to send feedback to xqueue."""
+
+        self.mock_xqueue.send_to_queue.return_value = (1, "Not Queued")
+
+        feedback_post = {
+            'feedback': 'feedback text',
+            'submission_id': '1',
+            'grader_id': '1',
+            'score': 3
+        }
+        result = self.openendedmodule.message_post(feedback_post, self.test_system)
+        self.assertFalse(result['success'])
+
+        state = json.loads(self.openendedmodule.get_instance_state())
+        self.assertNotEqual(state['child_state'], OpenEndedModule.DONE)
 
     def test_send_to_grader(self):
-        submission = "This is a student submission"
-        qtime = datetime.strftime(datetime.now(UTC), xqueue_interface.dateformat)
-        student_info = {'anonymous_student_id': self.test_system.anonymous_student_id,
-                        'submission_time': qtime}
-        contents = self.openendedmodule.payload.copy()
-        contents.update({
-            'student_info': json.dumps(student_info),
-            'student_response': submission,
-            'max_score': self.max_score
-        })
-        result = self.openendedmodule.send_to_grader(submission, self.test_system)
+        student_response = "This is a student submission"
+        submission_time = datetime.strftime(datetime.now(UTC), xqueue_interface.dateformat)
+
+        result, __ = self.openendedmodule.send_to_grader(student_response, self.test_system)
         self.assertTrue(result)
-        self.mock_xqueue.send_to_queue.assert_called_with(body=json.dumps(contents), header=ANY)
+
+        mock_send_to_queue_body_arg = json.loads(self.mock_xqueue.send_to_queue.call_args[1]['body'])
+        self.assertEqual(mock_send_to_queue_body_arg['student_response'], student_response)
+        self.assertEqual(mock_send_to_queue_body_arg['max_score'], self.max_score)
+        body_arg_student_info = json.loads(mock_send_to_queue_body_arg['student_info'])
+        self.assertEqual(body_arg_student_info['anonymous_student_id'], self.test_system.anonymous_student_id)
+        self.assertGreaterEqual(body_arg_student_info['submission_time'], submission_time)
+
+    def test_send_to_grader_fail(self):
+        """Test send_to_grader() if unable to send submission to xqueue."""
+
+        student_response = "This is a student submission"
+        self.mock_xqueue.send_to_queue.return_value = (1, "Not Queued")
+        result, __ = self.openendedmodule.send_to_grader(student_response, self.test_system)
+        self.assertFalse(result)
+
+    def test_save_answer_fail(self):
+        """Test save_answer() if unable to send submission to grader."""
+
+        submission = "This is a student submission"
+        self.openendedmodule.send_to_grader = Mock(return_value=(False, "Failed"))
+        response = self.openendedmodule.save_answer(
+            {"student_answer": submission},
+            get_test_system()
+        )
+        self.assertFalse(response['success'])
+        self.assertNotEqual(self.openendedmodule.latest_answer(), submission)
+        self.assertEqual(self.openendedmodule.stored_answer, submission)
+        state = json.loads(self.openendedmodule.get_instance_state())
+        self.assertEqual(state['child_state'], OpenEndedModule.INITIAL)
+        self.assertEqual(state['stored_answer'], submission)
 
     def update_score_single(self):
         self.openendedmodule.new_history_entry("New Entry")
@@ -358,7 +404,7 @@ class OpenEndedModuleTest(unittest.TestCase):
 
         # Create a module with no state yet.  Important that this start off as a blank slate.
         test_module = OpenEndedModule(self.test_system, self.location,
-                                                self.definition, self.descriptor, self.static_data, self.metadata)
+                                      self.definition, self.descriptor, self.static_data, self.metadata)
 
         saved_response = "Saved response."
         submitted_response = "Submitted response."
@@ -369,13 +415,13 @@ class OpenEndedModuleTest(unittest.TestCase):
         self.assertEqual(test_module.get_display_answer(), "")
 
         # Now, store an answer in the module.
-        test_module.handle_ajax("store_answer", {'student_answer' : saved_response}, get_test_system())
+        test_module.handle_ajax("store_answer", {'student_answer': saved_response}, get_test_system())
         # The stored answer should now equal our response.
         self.assertEqual(test_module.stored_answer, saved_response)
         self.assertEqual(test_module.get_display_answer(), saved_response)
 
         # Mock out the send_to_grader function so it doesn't try to connect to the xqueue.
-        test_module.send_to_grader = Mock(return_value=True)
+        test_module.send_to_grader = Mock(return_value=(True, "Success"))
         # Submit a student response to the question.
         test_module.handle_ajax(
             "save_answer",
@@ -386,6 +432,15 @@ class OpenEndedModuleTest(unittest.TestCase):
         self.assertEqual(test_module.stored_answer, None)
         # Confirm that the answer is stored properly.
         self.assertEqual(test_module.latest_answer(), submitted_response)
+
+    def test_parse_score_msg(self):
+        """
+        Test _parse_score_msg with empty dict.
+        """
+
+        assessment = self.openendedmodule._parse_score_msg("{}", self.test_system)
+        self.assertEqual(assessment.get("valid"), False)
+
 
 class CombinedOpenEndedModuleTest(unittest.TestCase):
     """
@@ -496,6 +551,27 @@ class CombinedOpenEndedModuleTest(unittest.TestCase):
         self.assertEqual(response_dict['type'], "selfassessment")
         self.assertEqual(response_dict['max_score'], self.max_score)
         self.assertEqual(response_dict['state'], CombinedOpenEndedV1Module.INITIAL)
+
+    def test_create_task(self):
+        combinedoe = self.generate_oe_module(TEST_STATE_AI, 1, [self.task_xml1, self.task_xml2])
+
+        first_task = combinedoe.create_task(combinedoe.task_states[0], combinedoe.task_xml[0])
+        self.assertIsInstance(first_task, SelfAssessmentModule)
+
+        second_task = combinedoe.create_task(combinedoe.task_states[1], combinedoe.task_xml[1])
+        self.assertIsInstance(second_task, OpenEndedModule)
+
+    def test_get_task_number(self):
+        combinedoe = self.generate_oe_module(TEST_STATE_AI, 1, [self.task_xml1, self.task_xml2])
+
+        first_task = combinedoe.get_task_number(0)
+        self.assertIsInstance(first_task, SelfAssessmentModule)
+
+        second_task = combinedoe.get_task_number(1)
+        self.assertIsInstance(second_task, OpenEndedModule)
+
+        third_task = combinedoe.get_task_number(2)
+        self.assertIsNone(third_task)
 
     def test_update_task_states(self):
         """
@@ -610,7 +686,6 @@ class CombinedOpenEndedModuleTest(unittest.TestCase):
                                                    metadata=self.metadata,
                                                    instance_state={'task_states': TEST_STATE_SA_IN})
 
-
     def test_get_score_realistic(self):
         """
         Try to parse the correct score from a json instance state
@@ -717,6 +792,174 @@ class CombinedOpenEndedModuleTest(unittest.TestCase):
         self.ai_state_success(TEST_STATE_PE_SINGLE, iscore=0, tasks=[self.task_xml2])
 
 
+class CombinedOpenEndedModuleConsistencyTest(unittest.TestCase):
+    """
+    Unit tests for the combined open ended xmodule rubric scores consistency.
+    """
+
+    # location, definition_template, prompt, rubric, max_score, metadata, oeparam, task_xml1, task_xml2
+    # All these variables are used to construct the xmodule descriptor.
+    location = Location(["i4x", "edX", "open_ended", "combinedopenended",
+                         "SampleQuestion"])
+    definition_template = """
+                    <combinedopenended attempts="10000">
+                    {rubric}
+                    {prompt}
+                    <task>
+                    {task1}
+                    </task>
+                    <task>
+                    {task2}
+                    </task>
+                    </combinedopenended>
+                    """
+    prompt = "<prompt>This is a question prompt</prompt>"
+    rubric = '''<rubric><rubric>
+        <category>
+        <description>Response Quality</description>
+        <option>The response is not a satisfactory answer to the question.  It either fails to address the question or does so in a limited way, with no evidence of higher-order thinking.</option>
+        <option>Second option</option>
+        </category>
+         </rubric></rubric>'''
+    max_score = 10
+
+    metadata = {'attempts': '10', 'max_score': max_score}
+
+    oeparam = etree.XML('''
+      <openendedparam>
+            <initial_display>Enter essay here.</initial_display>
+            <answer_display>This is the answer.</answer_display>
+            <grader_payload>{"grader_settings" : "ml_grading.conf", "problem_id" : "6.002x/Welcome/OETest"}</grader_payload>
+        </openendedparam>
+    ''')
+
+    task_xml1 = '''
+                <selfassessment>
+                    <hintprompt>
+                        What hint about this problem would you give to someone?
+                    </hintprompt>
+                    <submitmessage>
+                        Save Succcesful.  Thanks for participating!
+                    </submitmessage>
+                </selfassessment>
+            '''
+    task_xml2 = '''
+    <openended min_score_to_attempt="1" max_score_to_attempt="10">
+            <openendedparam>
+                    <initial_display>Enter essay here.</initial_display>
+                    <answer_display>This is the answer.</answer_display>
+                    <grader_payload>{"grader_settings" : "ml_grading.conf", "problem_id" : "6.002x/Welcome/OETest"}</grader_payload>
+           </openendedparam>
+    </openended>'''
+
+    static_data = {
+        'max_attempts': 20,
+        'prompt': prompt,
+        'rubric': rubric,
+        'max_score': max_score,
+        'display_name': 'Name',
+        'accept_file_upload': False,
+        'close_date': "",
+        's3_interface': test_util_open_ended.S3_INTERFACE,
+        'open_ended_grading_interface': test_util_open_ended.OPEN_ENDED_GRADING_INTERFACE,
+        'skip_basic_checks': False,
+        'graded': True,
+    }
+
+    definition = {'prompt': etree.XML(prompt), 'rubric': etree.XML(rubric), 'task_xml': [task_xml1, task_xml2]}
+    full_definition = definition_template.format(prompt=prompt, rubric=rubric, task1=task_xml1, task2=task_xml2)
+    descriptor = Mock(data=full_definition)
+    test_system = get_test_system()
+    test_system.open_ended_grading_interface = None
+    combinedoe_container = CombinedOpenEndedModule(
+        descriptor=descriptor,
+        runtime=test_system,
+        field_data=DictFieldData({
+            'data': full_definition,
+            'weight': '1',
+        }),
+        scope_ids=ScopeIds(None, None, None, None),
+    )
+
+    def setUp(self):
+        self.combinedoe = CombinedOpenEndedV1Module(self.test_system,
+                                                    self.location,
+                                                    self.definition,
+                                                    self.descriptor,
+                                                    static_data=self.static_data,
+                                                    metadata=self.metadata,
+                                                    instance_state=json.loads(INSTANCE_INCONSISTENT_STATE))
+
+    def test_get_score(self):
+        """
+        If grader type is ML score should be updated from rubric scores. Aggregate rubric scores = sum([3])*5.
+        """
+        score_dict = self.combinedoe.get_score()
+        self.assertEqual(score_dict['score'], 15.0)
+        self.assertEqual(score_dict['total'], 5.0)
+
+    def test_get_score_with_pe_grader(self):
+        """
+        If grader type is PE score should not be updated from rubric scores. Aggregate rubric scores = sum([3])*5.
+        """
+        combinedoe = CombinedOpenEndedV1Module(self.test_system,
+                                               self.location,
+                                               self.definition,
+                                               self.descriptor,
+                                               static_data=self.static_data,
+                                               metadata=self.metadata,
+                                               instance_state=json.loads(INSTANCE_INCONSISTENT_STATE2))
+        score_dict = combinedoe.get_score()
+        self.assertNotEqual(score_dict['score'], 15.0)
+
+    def test_get_score_with_different_score_value_in_rubric(self):
+        """
+        If grader type is ML score should be updated from rubric scores. Aggregate rubric scores = sum([5])*5.
+        """
+        combinedoe = CombinedOpenEndedV1Module(self.test_system,
+                                               self.location,
+                                               self.definition,
+                                               self.descriptor,
+                                               static_data=self.static_data,
+                                               metadata=self.metadata,
+                                               instance_state=json.loads(INSTANCE_INCONSISTENT_STATE3))
+        score_dict = combinedoe.get_score()
+        self.assertEqual(score_dict['score'], 25.0)
+        self.assertEqual(score_dict['total'], 5.0)
+
+    def test_get_score_with_old_task_states(self):
+        """
+        If grader type is ML and old_task_states are present in instance inconsistent state score should be updated
+        from rubric scores. Aggregate rubric scores = sum([3])*5.
+        """
+        combinedoe = CombinedOpenEndedV1Module(self.test_system,
+                                               self.location,
+                                               self.definition,
+                                               self.descriptor,
+                                               static_data=self.static_data,
+                                               metadata=self.metadata,
+                                               instance_state=json.loads(INSTANCE_INCONSISTENT_STATE4))
+        score_dict = combinedoe.get_score()
+        self.assertEqual(score_dict['score'], 15.0)
+        self.assertEqual(score_dict['total'], 5.0)
+
+    def test_get_score_with_score_missing(self):
+        """
+        If grader type is ML and score field is missing in instance inconsistent state score should be updated from
+        rubric scores. Aggregate rubric scores = sum([3])*5.
+        """
+        combinedoe = CombinedOpenEndedV1Module(self.test_system,
+                                               self.location,
+                                               self.definition,
+                                               self.descriptor,
+                                               static_data=self.static_data,
+                                               metadata=self.metadata,
+                                               instance_state=json.loads(INSTANCE_INCONSISTENT_STATE5))
+        score_dict = combinedoe.get_score()
+        self.assertEqual(score_dict['score'], 15.0)
+        self.assertEqual(score_dict['total'], 5.0)
+
+
 class OpenEndedModuleXmlTest(unittest.TestCase, DummyModulestore):
     """
     Test the student flow in the combined open ended xmodule
@@ -727,11 +970,16 @@ class OpenEndedModuleXmlTest(unittest.TestCase, DummyModulestore):
     hint = "blah"
 
     def get_module_system(self, descriptor):
+
+        def construct_callback(dispatch="score_update"):
+            return dispatch
+
         test_system = get_test_system()
         test_system.open_ended_grading_interface = None
         test_system.xqueue['interface'] = Mock(
-            send_to_queue=Mock(side_effect=[1, "queued"])
+            send_to_queue=Mock(return_value=(0, "Queued"))
         )
+        test_system.xqueue['construct_callback'] = construct_callback
 
         return test_system
 
@@ -802,6 +1050,96 @@ class OpenEndedModuleXmlTest(unittest.TestCase, DummyModulestore):
         self._handle_ajax("reset", {})
         self.assertEqual(self._module().current_task_number, 0)
 
+    def test_open_ended_flow_with_xqueue_failure(self):
+        """
+        Test a two step problem where the student first goes through the self assessment step, and then the
+        open ended step with the xqueue failing in the first step.
+        """
+        assessment = [1, 1]
+
+        # Simulate a student saving an answer
+        self._handle_ajax("save_answer", {"student_answer": self.answer})
+        status = self._handle_ajax("get_status", {})
+        self.assertIsInstance(status, basestring)
+
+        # Mock a student submitting an assessment
+        assessment_dict = MultiDict({'assessment': sum(assessment)})
+        assessment_dict.extend(('score_list[]', val) for val in assessment)
+
+        mock_xqueue_interface = Mock(
+            send_to_queue=Mock(return_value=(1, "Not Queued"))
+        )
+
+        # Call handle_ajax on the module with xqueue down
+        module = self._module()
+        with patch.dict(module.xmodule_runtime.xqueue, {'interface': mock_xqueue_interface}):
+            module.handle_ajax("save_assessment", assessment_dict)
+            self.assertEqual(module.current_task_number, 1)
+            self.assertTrue((module.child_module.get_task_number(1).child_created))
+        module.save()
+
+        # Check that next time the OpenEndedModule is loaded it calls send_to_grader
+        with patch.object(OpenEndedModule, 'send_to_grader') as mock_send_to_grader:
+            mock_send_to_grader.return_value = (False, "Not Queued")
+            module = self._module().child_module.get_score()
+            self.assertTrue(mock_send_to_grader.called)
+            self.assertTrue((self._module().child_module.get_task_number(1).child_created))
+
+        # Loading it this time should send submission to xqueue correctly
+        self.assertFalse((self._module().child_module.get_task_number(1).child_created))
+        self.assertEqual(self._module().current_task_number, 1)
+        self.assertEqual(self._module().state, OpenEndedChild.ASSESSING)
+
+        task_one_json = json.loads(self._module().task_states[0])
+        self.assertEqual(json.loads(task_one_json['child_history'][0]['post_assessment']), assessment)
+
+        # Move to the next step in the problem
+        self._handle_ajax("next_problem", {})
+        self.assertEqual(self._module().current_task_number, 1)
+        self._module().render('student_view')
+
+        # Try to get the rubric from the module
+        self._handle_ajax("get_combined_rubric", {})
+
+        self.assertEqual(self._module().state, OpenEndedChild.ASSESSING)
+
+        # Make a fake reply from the queue
+        queue_reply = {
+            'queuekey': "",
+            'xqueue_body': json.dumps({
+                'score': 0,
+                'feedback': json.dumps({"spelling": "Spelling: Ok.", "grammar": "Grammar: Ok.",
+                                        "markup-text": " all of us can think of a book that we hope none of our children or any other children have taken off the shelf . but if i have the right to remove that book from the shelf that work i abhor then you also have exactly the same right and so does everyone else . and then we <bg>have no books left</bg> on the shelf for any of us . <bs>katherine</bs> <bs>paterson</bs> , author write a persuasive essay to a newspaper reflecting your vies on censorship <bg>in libraries . do</bg> you believe that certain materials , such as books , music , movies , magazines , <bg>etc . , should be</bg> removed from the shelves if they are found <bg>offensive ? support your</bg> position with convincing arguments from your own experience , observations <bg>, and or reading .</bg> "}),
+                'grader_type': "ML",
+                'success': True,
+                'grader_id': 1,
+                'submission_id': 1,
+                'rubric_xml': "<rubric><category><description>Writing Applications</description><score>0</score><option points='0'> The essay loses focus, has little information or supporting details, and the organization makes it difficult to follow.</option><option points='1'> The essay presents a mostly unified theme, includes sufficient information to convey the theme, and is generally organized well.</option></category><category><description> Language Conventions </description><score>0</score><option points='0'> The essay demonstrates a reasonable command of proper spelling and grammar. </option><option points='1'> The essay demonstrates superior command of proper spelling and grammar.</option></category></rubric>",
+                'rubric_scores_complete': True,
+            })
+        }
+
+        self._handle_ajax("check_for_score", {})
+
+        # Update the module with the fake queue reply
+        self._handle_ajax("score_update", queue_reply)
+
+        module = self._module()
+        self.assertFalse(module.ready_to_reset)
+        self.assertEqual(module.current_task_number, 1)
+
+        # Get html and other data client will request
+        module.render('student_view')
+
+        self._handle_ajax("skip_post_assessment", {})
+
+        # Get all results
+        self._handle_ajax("get_combined_rubric", {})
+
+        # reset the problem
+        self._handle_ajax("reset", {})
+        self.assertEqual(self._module().state, "initial")
+
     def test_open_ended_flow_correct(self):
         """
         Test a two step problem where the student first goes through the self assessment step, and then the
@@ -825,17 +1163,9 @@ class OpenEndedModuleXmlTest(unittest.TestCase, DummyModulestore):
         self.assertEqual(json.loads(task_one_json['child_history'][0]['post_assessment']), assessment)
 
         # Move to the next step in the problem
-        try:
-            self._handle_ajax("next_problem", {})
-        except GradingServiceError:
-            # This error is okay.  We don't have a grading service to connect to!
-            pass
+        self._handle_ajax("next_problem", {})
         self.assertEqual(self._module().current_task_number, 1)
-        try:
-            self._module().render('student_view')
-        except GradingServiceError:
-            # This error is okay.  We don't have a grading service to connect to!
-            pass
+        self._module().render('student_view')
 
         # Try to get the rubric from the module
         self._handle_ajax("get_combined_rubric", {})
@@ -891,7 +1221,7 @@ class OpenEndedModuleXmlAttemptTest(unittest.TestCase, DummyModulestore):
         test_system = get_test_system()
         test_system.open_ended_grading_interface = None
         test_system.xqueue['interface'] = Mock(
-            send_to_queue=Mock(side_effect=[1, "queued"])
+            send_to_queue=Mock(return_value=(0, "Queued"))
         )
         return test_system
 
@@ -948,6 +1278,7 @@ class OpenEndedModuleXmlAttemptTest(unittest.TestCase, DummyModulestore):
         reset_data = json.loads(self._handle_ajax("reset", {}))
         self.assertEqual(reset_data['success'], False)
 
+
 class OpenEndedModuleXmlImageUploadTest(unittest.TestCase, DummyModulestore):
     """
     Test if student is able to upload images properly.
@@ -964,7 +1295,7 @@ class OpenEndedModuleXmlImageUploadTest(unittest.TestCase, DummyModulestore):
         test_system.open_ended_grading_interface = None
         test_system.s3_interface = test_util_open_ended.S3_INTERFACE
         test_system.xqueue['interface'] = Mock(
-            send_to_queue=Mock(side_effect=[1, "queued"])
+            send_to_queue=Mock(return_value=(0, "Queued"))
         )
         return test_system
 
@@ -1018,7 +1349,7 @@ class OpenEndedModuleXmlImageUploadTest(unittest.TestCase, DummyModulestore):
         # Simulate a student saving an answer with a link.
         response = module.handle_ajax("save_answer", {
             "student_answer": "{0} {1}".format(self.answer_text, self.answer_link)
-            })
+        })
 
         response = json.loads(response)
 

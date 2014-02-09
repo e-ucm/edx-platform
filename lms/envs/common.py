@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 This is the common settings file, intended to set sane defaults. If you have a
 piece of configuration that's dependent on a set of feature flags being set,
@@ -25,6 +26,7 @@ Longer TODO:
 
 import sys
 import os
+import json
 
 from path import path
 
@@ -32,7 +34,7 @@ from .discussionsettings import *
 
 from lms.lib.xblock.mixin import LmsBlockMixin
 from xmodule.modulestore.inheritance import InheritanceMixin
-from xmodule.x_module import XModuleMixin
+from xmodule.x_module import XModuleMixin, only_xmodules
 
 ################################### FEATURES ###################################
 # The display name of the platform to be used in templates/emails/etc.
@@ -89,12 +91,14 @@ FEATURES = {
 
     'ENABLE_MASQUERADE': True,  # allow course staff to change to student view of courseware
 
+    'ENABLE_SYSADMIN_DASHBOARD': False,  # sysadmin dashboard, to see what courses are loaded, to delete & load courses
+
     'DISABLE_LOGIN_BUTTON': False,  # used in systems where login is automatic, eg MIT SSL
 
     # extrernal access methods
     'ACCESS_REQUIRE_STAFF_FOR_COURSE': False,
     'AUTH_USE_OPENID': False,
-    'AUTH_USE_MIT_CERTIFICATES': False,
+    'AUTH_USE_CERTIFICATES': False,
     'AUTH_USE_OPENID_PROVIDER': False,
     # Even though external_auth is in common, shib assumes the LMS views / urls, so it should only be enabled
     # in LMS
@@ -142,7 +146,7 @@ FEATURES = {
     # Enables the student notes API and UI.
     'ENABLE_STUDENT_NOTES': True,
 
-    # Provide a UI to allow users to submit feedback from the LMS
+    # Provide a UI to allow users to submit feedback from the LMS (left-hand help modal)
     'ENABLE_FEEDBACK_SUBMISSION': False,
 
     # Turn on a page that lets staff enter Python code to be run in the
@@ -160,6 +164,9 @@ FEATURES = {
 
     # Enable instructor dash to submit background tasks
     'ENABLE_INSTRUCTOR_BACKGROUND_TASKS': True,
+
+    # Enable instructor to assign individual due dates
+    'INDIVIDUAL_DUE_DATES': False,
 
     # Enable instructor dash beta version link
     'ENABLE_INSTRUCTOR_BETA_DASHBOARD': True,
@@ -197,9 +204,17 @@ FEATURES = {
     # grades CSV files to S3 and give links for downloads.
     'ENABLE_S3_GRADE_DOWNLOADS': False,
 
+    # whether to use password policy enforcement or not
+    'ENFORCE_PASSWORD_POLICY': False,
+
     # Give course staff unrestricted access to grade downloads (if set to False,
     # only edX superusers can perform the downloads)
     'ALLOW_COURSE_STAFF_GRADE_DOWNLOADS': False,
+
+    'ENABLED_PAYMENT_REPORTS': ["refund_report", "itemized_purchase_report", "university_revenue_share", "certificate_status"],
+
+    # Turn off account locking if failed login attempts exceeds a limit
+    'ENABLE_MAX_FAILED_LOGIN_ATTEMPTS': False,
 }
 
 # Used for A/B testing
@@ -216,7 +231,7 @@ XQUEUE_WAITTIME_BETWEEN_REQUESTS = 5  # seconds
 PROJECT_ROOT = path(__file__).abspath().dirname().dirname()  # /edx-platform/lms
 REPO_ROOT = PROJECT_ROOT.dirname()
 COMMON_ROOT = REPO_ROOT / "common"
-ENV_ROOT = REPO_ROOT.dirname()  # virtualenv dir /mitx is in
+ENV_ROOT = REPO_ROOT.dirname()  # virtualenv dir /edx-platform is in
 COURSES_ROOT = ENV_ROOT / "data"
 
 DATA_DIR = COURSES_ROOT
@@ -245,7 +260,7 @@ STATUS_MESSAGE_PATH = ENV_ROOT / "status_message.json"
 ############################ OpenID Provider  ##################################
 OPENID_PROVIDER_TRUSTED_ROOTS = ['cs50.net', '*.cs50.net']
 
-################################## MITXWEB #####################################
+################################## EDX WEB #####################################
 # This is where we stick our compiled template files. Most of the app uses Mako
 # templates
 from tempdir import mkdtemp_clean
@@ -269,7 +284,7 @@ TEMPLATE_CONTEXT_PROCESSORS = (
     'django.core.context_processors.request',
     'django.core.context_processors.static',
     'django.contrib.messages.context_processors.messages',
-    #'django.core.context_processors.i18n',
+    'django.core.context_processors.i18n',
     'django.contrib.auth.context_processors.auth',  # this is required for admin
     'django.core.context_processors.csrf',
 
@@ -375,7 +390,7 @@ TRACKING_ENABLED = True
 ######################## subdomain specific settings ###########################
 COURSE_LISTINGS = {}
 SUBDOMAIN_BRANDING = {}
-
+VIRTUAL_UNIVERSITIES = []
 
 ############################### XModule Store ##################################
 MODULESTORE = {
@@ -388,17 +403,25 @@ MODULESTORE = {
     }
 }
 CONTENTSTORE = None
-DOC_STORE_CONFIG = None
-
-# Should we initialize the modulestores at startup, or wait until they are
-# needed?
-INIT_MODULESTORE_ON_STARTUP = True
+DOC_STORE_CONFIG = {
+    'host': 'localhost',
+    'db': 'xmodule',
+    'collection': 'modulestore',
+}
 
 ############# XBlock Configuration ##########
 
 # This should be moved into an XBlock Runtime/Application object
 # once the responsibility of XBlock creation is moved out of modulestore - cpennington
 XBLOCK_MIXINS = (LmsBlockMixin, InheritanceMixin, XModuleMixin)
+
+# Only allow XModules in the LMS
+XBLOCK_SELECT_FUNCTION = only_xmodules
+
+# Use the following lines to allow any xblock in the LMS,
+# either by uncommenting them here, or adding them to your private.py
+# from xmodule.x_module import prefer_xmodules
+# XBLOCK_SELECT_FUNCTION = prefer_xmodules
 
 #################### Python sandbox ############################################
 
@@ -444,6 +467,7 @@ SITE_NAME = "edx.org"
 HTTPS = 'on'
 ROOT_URLCONF = 'lms.urls'
 IGNORABLE_404_ENDS = ('favicon.ico')
+# NOTE: Please set ALLOWED_HOSTS to some sane value, as we do not allow the default '*'
 
 # Platform Email
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
@@ -471,14 +495,60 @@ FAVICON_PATH = 'images/favicon.ico'
 # Locale/Internationalization
 TIME_ZONE = 'America/New_York'  # http://en.wikipedia.org/wiki/List_of_tz_zones_by_name
 LANGUAGE_CODE = 'en'  # http://www.i18nguy.com/unicode/language-identifiers.html
-LANGUAGES = ()
 
-# We want i18n to be turned off in production, at least until we have full localizations.
-# Thus we want the Django translation engine to be disabled. Otherwise even without
-# localization files, if the user's browser is set to a language other than us-en,
-# strings like "login" and "password" will be translated and the rest of the page will be
-# in English, which is confusing.
-USE_I18N = False
+# Sourced from http://www.localeplanet.com/icu/ and wikipedia
+LANGUAGES = (
+    ('eo', u'Dummy Language (Esperanto)'),  # Dummy languaged used for testing
+
+    ('ach', u'Acholi'),  # Acoli
+    ('ar', u'العربية'),  # Arabic
+    ('bg-bg', u'български (България)'),  # Bulgarian (Bulgaria)
+    ('bn', u'বাংলা'),  # Bengali
+    ('bn-bd', u'বাংলা (বাংলাদেশ)'),  # Bengali (Bangladesh)
+    ('cs', u'Čeština'),  # Czech
+    ('cy', u'Cymraeg'),  # Welsh
+    ('de-de', u'Deutsch (Deutschland)'),  # German (Germany)
+    ('en@lolcat', u'LOLCAT English'),  # LOLCAT English
+    ('en@pirate', u'Pirate English'),  # Pirate English
+    ('es-419', u'Español (Latinoamérica)'),  # Spanish (Latin America)
+    ('es-ec', u'Español (Ecuador)'),  # Spanish (Ecuador)
+    ('es-es', u'Español (España)'),  # Spanish (Spain)
+    ('es-mx', u'Español (México)'),  # Spanish (Mexico)
+    ('es-us', u'Español (Estados Unidos)'),  # Spanish (United States)
+    ('et-ee', u'Eesti (Eesti)'),  # Estonian (Estonia)
+    ('fa', u'فارسی'),  # Persian
+    ('fa-ir', u'فارسی (ایران)'),  # Persian (Iran)
+    ('fi-fi', u'Suomi (Suomi)'),  # Finnish (Finland)
+    ('fr', u'Français'),  # French
+    ('gl', u'Galego'),  # Galician
+    ('he', u'עברית'),  # Hebrew
+    ('hi', u'हिन्दी'),  # Hindi
+    ('hy-am', u'Հայերէն (Հայաստանի Հանրապետութիւն)'),  # Armenian (Armenia)
+    ('id', u'Bahasa Indonesia'),  # Indonesian
+    ('it-it', u'Italiano (Italia)'),  # Italian (Italy)
+    ('ja-jp', u'日本語(日本)'),  # Japanese (Japan)
+    ('km-kh', u'ភាសាខ្មែរ (កម្ពុជា)'),  # Khmer (Cambodia)
+    ('ko-kr', u'한국어(대한민국)'),  # Korean (Korea)
+    ('lt-lt', u'Lietuvių (Lietuva)'),  # Lithuanian (Lithuania)
+    ('ml', u'മലയാളം'),  # Malayalam
+    ('nb', u'Norsk bokmål'),  # Norwegian Bokmål
+    ('nl-nl', u'Nederlands (Nederland)'),  # Dutch (Netherlands)
+    ('pl', u'Polski'),  # Polish
+    ('pt-br', u'Português (Brasil)'),  # Portuguese (Brazil)
+    ('pt-pt', u'Português (Portugal)'),  # Portuguese (Portugal)
+    ('ru', u'Русский'),  # Russian
+    ('si', u'සිංහල'),  # Sinhala
+    ('sk', u'Slovenčina'),  # Slovak
+    ('sl', u'Slovenščina'),  # Slovenian
+    ('th', u'ไทย'),  # Thai
+    ('tr-tr', u'Türkçe (Türkiye)'),  # Turkish (Turkey)
+    ('uk', u'Українська'),  # Uknranian
+    ('vi', u'Tiếng Việt'),  # Vietnamese
+    ('zh-cn', u'大陆简体'),  # Chinese (China)
+    ('zh-tw', u'台灣正體'),  # Chinese (Taiwan)
+)
+
+USE_I18N = True
 USE_L10N = True
 
 # Localization strings (e.g. django.po) are under this directory
@@ -490,7 +560,7 @@ MESSAGE_STORAGE = 'django.contrib.messages.storage.session.SessionStorage'
 # gitreload is used in LMS-workflow to pull content from github
 # gitreload requests are only allowed from these IP addresses, which are
 # the advertised public IPs of the github WebHook servers.
-# These are listed, eg at https://github.com/MITx/mitx/admin/hooks
+# These are listed, eg at https://github.com/edx/edx-platform/admin/hooks
 
 ALLOWED_GITRELOAD_IPS = ['207.97.227.253', '50.57.128.197', '108.171.174.178']
 
@@ -548,8 +618,6 @@ PAID_COURSE_REGISTRATION_CURRENCY = ['usd', '$']
 
 # Members of this group are allowed to generate payment reports
 PAYMENT_REPORT_GENERATOR_GROUP = 'shoppingcart_report_access'
-# Maximum number of rows the report can contain
-PAYMENT_REPORT_MAX_ITEMS = 10000
 
 ################################# open ended grading config  #####################
 
@@ -602,6 +670,7 @@ TEMPLATE_LOADERS = (
 
 MIDDLEWARE_CLASSES = (
     'request_cache.middleware.RequestCache',
+    'microsite_configuration.middleware.MicrositeConfiguration',
     'django_comment_client.middleware.AjaxExceptionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -615,10 +684,12 @@ MIDDLEWARE_CLASSES = (
 
     'django.contrib.messages.middleware.MessageMiddleware',
     'track.middleware.TrackMiddleware',
-    'edxmako.middleware.MakoMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
 
     'course_wiki.course_nav.Middleware',
+
+    # Allows us to dark-launch particular languages
+    'dark_lang.middleware.DarkLangMiddleware',
 
     # Detects user-requested locale from 'accept-language' header in http request
     'django.middleware.locale.LocaleMiddleware',
@@ -631,9 +702,14 @@ MIDDLEWARE_CLASSES = (
 
     # catches any uncaught RateLimitExceptions and returns a 403 instead of a 500
     'ratelimitbackend.middleware.RateLimitMiddleware',
+    # needs to run after locale middleware (or anything that modifies the request context)
+    'edxmako.middleware.MakoMiddleware',
 
     # For A/B testing
     'waffle.middleware.WaffleMiddleware',
+
+    # for expiring inactive sessions
+    'session_inactivity_timeout.middleware.SessionInactivityTimeout',
 )
 
 ############################### Pipeline #######################################
@@ -660,15 +736,27 @@ main_vendor_js = [
     'js/vendor/jquery.qtip.min.js',
     'js/vendor/swfobject/swfobject.js',
     'js/vendor/jquery.ba-bbq.min.js',
-    'js/vendor/annotator.min.js',
-    'js/vendor/annotator.store.min.js',
-    'js/vendor/annotator.tags.min.js'
+    'js/vendor/ova/annotator-full.js',
+    'js/vendor/ova/video.dev.js',
+    'js/vendor/ova/vjs.youtube.js',
+    'js/vendor/ova/rangeslider.js',
+    'js/vendor/ova/share-annotator.js',
+    'js/vendor/ova/tinymce.min.js',
+    'js/vendor/ova/richText-annotator.js',
+    'js/vendor/ova/reply-annotator.js',
+    'js/vendor/ova/tags-annotator.js',
+    'js/vendor/ova/flagging-annotator.js',
+    'js/vendor/ova/jquery-Watch.js',
+    'js/vendor/ova/ova.js',
+    'js/vendor/ova/catch/js/catch.js',
+    'js/vendor/ova/catch/js/handlebars-1.1.2.js'
+    'js/vendor/URI.min.js'
 ]
 
 discussion_js = sorted(rooted_glob(COMMON_ROOT / 'static', 'coffee/src/discussion/**/*.js'))
 staff_grading_js = sorted(rooted_glob(PROJECT_ROOT / 'static', 'coffee/src/staff_grading/**/*.js'))
 open_ended_js = sorted(rooted_glob(PROJECT_ROOT / 'static', 'coffee/src/open_ended/**/*.js'))
-notes_js = ['coffee/src/notes.js']
+notes_js = sorted(rooted_glob(PROJECT_ROOT / 'static', 'coffee/src/notes/**/*.js'))
 instructor_dash_js = sorted(rooted_glob(PROJECT_ROOT / 'static', 'coffee/src/instructor_dashboard/**/*.js'))
 
 PIPELINE_CSS = {
@@ -678,6 +766,16 @@ PIPELINE_CSS = {
             'css/vendor/jquery.qtip.min.css',
             'css/vendor/responsive-carousel/responsive-carousel.css',
             'css/vendor/responsive-carousel/responsive-carousel.slide.css',
+            'css/vendor/ova/edx-annotator.css',
+            'css/vendor/ova/annotator.css',
+            'css/vendor/ova/video-js.min.css',
+            'css/vendor/ova/rangeslider.css',
+            'css/vendor/ova/share-annotator.css',
+            'css/vendor/ova/richText-annotator.css',
+            'css/vendor/ova/tags-annotator.css',
+            'css/vendor/ova/flagging-annotator.css',
+            'css/vendor/ova/ova.css',
+            'js/vendor/ova/catch/css/main.css'
         ],
         'output_filename': 'css/lms-style-vendor.css',
     },
@@ -705,7 +803,6 @@ PIPELINE_CSS = {
             'js/vendor/CodeMirror/codemirror.css',
             'css/vendor/jquery.treeview.css',
             'css/vendor/ui-lightness/jquery-ui-1.8.22.custom.css',
-            'css/vendor/annotator.min.css',
         ],
         'output_filename': 'css/lms-style-course-vendor.css',
     },
@@ -719,17 +816,18 @@ PIPELINE_CSS = {
 }
 
 
+common_js = set(rooted_glob(COMMON_ROOT / 'static', 'coffee/src/**/*.js')) - set(courseware_js + discussion_js + staff_grading_js + open_ended_js + notes_js + instructor_dash_js)
+project_js = set(rooted_glob(PROJECT_ROOT / 'static', 'coffee/src/**/*.js')) - set(courseware_js + discussion_js + staff_grading_js + open_ended_js + notes_js + instructor_dash_js)
+
+
+
 # test_order: Determines the position of this chunk of javascript on
 # the jasmine test page
 PIPELINE_JS = {
     'application': {
 
         # Application will contain all paths not in courseware_only_js
-        'source_filenames': sorted(
-            set(rooted_glob(COMMON_ROOT / 'static', 'coffee/src/**/*.js') +
-                rooted_glob(PROJECT_ROOT / 'static', 'coffee/src/**/*.js')) -
-            set(courseware_js + discussion_js + staff_grading_js + open_ended_js + notes_js + instructor_dash_js)
-        ) + [
+        'source_filenames': sorted(common_js) + sorted(project_js) + [
             'js/form.ext.js',
             'js/my_courses_dropdown.js',
             'js/toggle_login_modal.js',
@@ -817,11 +915,15 @@ PIPELINE_JS_COMPRESSOR = None
 STATICFILES_IGNORE_PATTERNS = (
     "sass/*",
     "coffee/*",
+
+    # Symlinks used by js-test-tool
+    "xmodule_js",
+    "common_static",
 )
 
 PIPELINE_YUI_BINARY = 'yui-compressor'
 
-# Setting that will only affect the MITx version of django-pipeline until our changes are merged upstream
+# Setting that will only affect the edX version of django-pipeline until our changes are merged upstream
 PIPELINE_COMPILE_INPLACE = True
 
 ################################# CELERY ######################################
@@ -911,6 +1013,11 @@ BULK_EMAIL_LOG_SENT_EMAILS = False
 BULK_EMAIL_RETRY_DELAY_BETWEEN_SENDS = 0.02
 
 
+############################## Video ##########################################
+
+# URL to test YouTube availability
+YOUTUBE_TEST_URL = 'https://gdata.youtube.com/feeds/api/videos/'
+
 
 ################################### APPS ######################################
 INSTALLED_APPS = (
@@ -923,6 +1030,9 @@ INSTALLED_APPS = (
     'django.contrib.sites',
     'djcelery',
     'south',
+
+    # Database-backed configuration
+    'config_models',
 
     # Monitor the status of services
     'service_status',
@@ -944,6 +1054,7 @@ INSTALLED_APPS = (
     'eventtracking.django',
     'util',
     'certificates',
+    'dashboard',
     'instructor',
     'instructor_task',
     'open_ended_grading',
@@ -1001,6 +1112,15 @@ INSTALLED_APPS = (
 
     # Student Identity Verification
     'verify_student',
+
+    # Dark-launching languages
+    'dark_lang',
+
+    # Microsite configuration
+    'microsite_configuration',
+
+    # Student Identity Reverification
+    'reverification',
 )
 
 ######################### MARKETING SITE ###############################
@@ -1015,38 +1135,71 @@ MKTG_URL_LINK_MAP = {
     'TOS': 'tos',
     'HONOR': 'honor',
     'PRIVACY': 'privacy_edx',
+    'JOBS': 'jobs',
+    'PRESS': 'press',
 
     # Verified Certificates
     'WHAT_IS_VERIFIED_CERT': 'verified-certificate',
 }
 
 
-############################### THEME ################################
-def enable_theme(theme_name):
+############################### MICROSITES ################################
+def enable_microsites(microsite_config_dict, subdomain_branding, virtual_universities, microsites_root=ENV_ROOT / "microsites"):
     """
-    Enable the settings for a custom theme, whose files should be stored
-    in ENV_ROOT/themes/THEME_NAME (e.g., edx_all/themes/stanford).
-
-    The THEME_NAME setting should be configured separately since it can't
-    be set here (this function closes too early). An idiom for doing this
-    is:
-
-    THEME_NAME = "stanford"
-    enable_theme(THEME_NAME)
+    Enable the use of microsites, which are websites that allow
+    for subdomains for the edX platform, e.g. foo.edx.org
     """
-    FEATURES['USE_CUSTOM_THEME'] = True
 
-    # Calculate the location of the theme's files
-    theme_root = ENV_ROOT / "themes" / theme_name
+    if not microsite_config_dict:
+        return
 
-    # Include the theme's templates in the template search paths
-    TEMPLATE_DIRS.append(theme_root / 'templates')
-    MAKO_TEMPLATES['main'].append(theme_root / 'templates')
+    FEATURES['USE_MICROSITES'] = True
 
-    # Namespace the theme's static files to 'themes/<theme_name>' to
-    # avoid collisions with default edX static files
-    STATICFILES_DIRS.append((u'themes/%s' % theme_name,
-                             theme_root / 'static'))
+    for microsite_name in microsite_config_dict.keys():
+        # Calculate the location of the microsite's files
+        microsite_root = microsites_root / microsite_name
+        microsite_config = microsite_config_dict[microsite_name]
+
+        # pull in configuration information from each
+        # microsite root
+
+        if os.path.isdir(microsite_root):
+            # store the path on disk for later use
+            microsite_config['microsite_root'] = microsite_root
+
+            # get the domain that this should reside
+            domain = microsite_config['domain_prefix']
+
+            # get the virtual university that this should use
+            university = microsite_config['university']
+
+            # add to the existing maps in our settings
+            subdomain_branding[domain] = university
+            virtual_universities.append(university)
+
+            template_dir = microsite_root / 'templates'
+            microsite_config['template_dir'] = template_dir
+
+            microsite_config['microsite_name'] = microsite_name
+
+        else:
+            # not sure if we have application logging at this stage of
+            # startup
+            print '**** Error loading microsite {0}. Directory does not exist'.format(microsite_root)
+            # remove from our configuration as it is not valid
+            del microsite_config_dict[microsite_name]
+
+    # if we have microsites, then let's turn on SUBDOMAIN_BRANDING
+    # Note check size of the dict because some microsites might not be found on disk and
+    # we could be left with none
+    if microsite_config_dict:
+        FEATURES['SUBDOMAIN_BRANDING'] = True
+
+        TEMPLATE_DIRS.append(microsites_root)
+        MAKO_TEMPLATES['main'].append(microsites_root)
+
+        STATICFILES_DIRS.append(microsites_root)
+
 
 ################# Student Verification #################
 VERIFY_STUDENT = {
@@ -1066,14 +1219,21 @@ if FEATURES.get('AUTH_USE_CAS'):
 
 ###################### Registration ##################################
 
-# Remove some of the fields from the list to not display them
-REGISTRATION_OPTIONAL_FIELDS = set([
-    'level_of_education',
-    'gender',
-    'year_of_birth',
-    'mailing_address',
-    'goals',
-])
+# For each of the fields, give one of the following values:
+# - 'required': to display the field, and make it mandatory
+# - 'optional': to display the field, and make it non-mandatory
+# - 'hidden': to not display the field
+
+REGISTRATION_EXTRA_FIELDS = {
+    'level_of_education': 'optional',
+    'gender': 'optional',
+    'year_of_birth': 'optional',
+    'mailing_address': 'optional',
+    'goals': 'optional',
+    'honor_code': 'required',
+    'city': 'hidden',
+    'country': 'hidden',
+}
 
 ###################### Grade Downloads ######################
 GRADES_DOWNLOAD_ROUTING_KEY = HIGH_MEM_QUEUE
@@ -1083,3 +1243,26 @@ GRADES_DOWNLOAD = {
     'BUCKET': 'edx-grades',
     'ROOT_PATH': '/tmp/edx-s3/grades',
 }
+
+#### PASSWORD POLICY SETTINGS #####
+
+PASSWORD_MIN_LENGTH = None
+PASSWORD_MAX_LENGTH = None
+PASSWORD_COMPLEXITY = {}
+PASSWORD_DICTIONARY_EDIT_DISTANCE_THRESHOLD = None
+PASSWORD_DICTIONARY = []
+
+##################### LinkedIn #####################
+INSTALLED_APPS += ('django_openid_auth',)
+
+
+############################ LinkedIn Integration #############################
+INSTALLED_APPS += ('linkedin',)
+LINKEDIN_API = {
+    'EMAIL_WHITELIST': [],
+    'COMPANY_ID': '2746406',
+}
+
+##### ACCOUNT LOCKOUT DEFAULT PARAMETERS #####
+MAX_FAILED_LOGIN_ATTEMPTS_ALLOWED = 5
+MAX_FAILED_LOGIN_ATTEMPTS_LOCKOUT_PERIOD_SECS = 15 * 60

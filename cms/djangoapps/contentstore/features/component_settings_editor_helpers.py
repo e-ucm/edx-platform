@@ -4,6 +4,8 @@
 from lettuce import world
 from nose.tools import assert_equal, assert_in  # pylint: disable=E0611
 from terrain.steps import reload_the_page
+from common import type_in_codemirror
+from selenium.webdriver.common.keys import Keys
 
 
 @world.absorb
@@ -21,9 +23,9 @@ def create_component_instance(step, category, component_type=None, is_advanced=F
 
     component_button_css = 'span.large-{}-icon'.format(category.lower())
     if category == 'problem':
-        module_css = 'section.xmodule_CapaModule'
+        module_css = 'div.xmodule_CapaModule'
     else:
-        module_css = 'section.xmodule_{}Module'.format(category.title())
+        module_css = 'div.xmodule_{}Module'.format(category.title())
 
     # Count how many of that module is on the page. Later we will
     # assert that one more was added.
@@ -114,6 +116,16 @@ def edit_component():
     world.css_click('a.edit-button')
 
 
+def enter_xml_in_advanced_problem(step, text):
+    """
+    Edits an advanced problem (assumes only on page),
+    types the provided XML, and saves the component.
+    """
+    world.edit_component()
+    type_in_codemirror(0, text)
+    world.save_component(step)
+
+
 @world.absorb
 def verify_setting_entry(setting, display_name, value, explicitly_set):
     """
@@ -129,7 +141,7 @@ def verify_setting_entry(setting, display_name, value, explicitly_set):
         for the problem, rather than derived from the defaults. This is verified
         by the existence of a "Clear" button next to the field value.
     """
-    assert_equal(display_name, setting.find_by_css('.setting-label')[0].html)
+    assert_equal(display_name, setting.find_by_css('.setting-label')[0].html.strip())
 
     # Check if the web object is a list type
     # If so, we use a slightly different mechanism for determining its value
@@ -161,9 +173,14 @@ def verify_all_setting_entries(expected_entries):
 
 
 @world.absorb
-def save_component_and_reopen(step):
+def save_component(step):
     world.css_click("a.save-button")
     world.wait_for_ajax_complete()
+
+
+@world.absorb
+def save_component_and_reopen(step):
+    save_component(step)
     # We have a known issue that modifications are still shown within the edit window after cancel (though)
     # they are not persisted. Refresh the browser to make sure the changes WERE persisted after Save.
     reload_the_page(step)
@@ -203,3 +220,18 @@ def get_setting_entry_index(label):
                 return index
         return None
     return world.retry_on_exception(get_index)
+
+
+@world.absorb
+def set_field_value(index, value):
+    """
+    Set the field to the specified value.
+
+    Note: we cannot use css_fill here because the value is not set
+    until after you move away from that field.
+    Instead we will find the element, set its value, then hit the Tab key
+    to get to the next field.
+    """
+    elem = world.css_find('div.wrapper-comp-setting input.setting-input')[index]
+    elem.value = value
+    elem.type(Keys.TAB)

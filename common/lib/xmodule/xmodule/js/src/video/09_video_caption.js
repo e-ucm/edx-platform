@@ -211,6 +211,8 @@ function () {
             return false;
         }
 
+        this.videoCaption.hideCaptions(this.hide_captions);
+
         // Fetch the captions file. If no file was specified, or if an error
         // occurred, then we hide the captions panel, and the "CC" button
         $.ajaxWithPrefix({
@@ -221,7 +223,7 @@ function () {
                 _this.videoCaption.start = captions.start;
                 _this.videoCaption.loaded = true;
 
-                if (onTouchBasedDevice()) {
+                if (_this.isTouch) {
                     _this.videoCaption.subtitlesEl.find('li').html(
                         gettext(
                             'Caption will be displayed when ' +
@@ -231,6 +233,8 @@ function () {
                 } else {
                     _this.videoCaption.renderCaption();
                 }
+
+                _this.videoCaption.bindHandlers();
             },
             error: function (jqXHR, textStatus, errorThrown) {
                 console.log('[Video info]: ERROR while fetching captions.');
@@ -248,7 +252,7 @@ function () {
     }
 
     function captionURL() {
-        return '' + this.config.caption_asset_path +
+        return '' + this.config.captionAssetPath +
             this.youtubeId('1.0') + '.srt.sjson';
     }
 
@@ -349,35 +353,19 @@ function () {
 
     function renderCaption() {
         var container = $('<ol>'),
-            _this = this;
+            _this = this,
+            autohideHtml5 = this.config.autohideHtml5;
 
-        this.elVideoWrapper.after(this.videoCaption.subtitlesEl);
+        this.container.after(this.videoCaption.subtitlesEl);
         this.el.find('.video-controls .secondary-controls')
             .append(this.videoCaption.hideSubtitlesEl);
 
         this.videoCaption.setSubtitlesHeight();
 
-        if ((this.videoType === 'html5') && (this.config.autohideHtml5)) {
-            this.videoCaption.fadeOutTimeout = this.config.fadeOutTimeout;
-
-            this.videoCaption.subtitlesEl.addClass('html5');
-            this.captionHideTimeout = setTimeout(
-                this.videoCaption.autoHideCaptions,
-                this.videoCaption.fadeOutTimeout
-            );
-        } else if (!this.config.autohideHtml5) {
+        if ((this.videoType === 'html5' && autohideHtml5) || !autohideHtml5) {
             this.videoCaption.fadeOutTimeout = this.config.fadeOutTimeout;
             this.videoCaption.subtitlesEl.addClass('html5');
-
-            this.captionHideTimeout = setTimeout(
-                this.videoCaption.autoHideCaptions,
-                0
-            );
         }
-
-        this.videoCaption.hideCaptions(this.hide_captions);
-
-        this.videoCaption.bindHandlers();
 
         $.each(this.videoCaption.captions, function(index, text) {
             var liEl = $('<li>');
@@ -757,7 +745,7 @@ function () {
                 0.5 * this.videoControl.sliderEl.height() -
                 2 * paddingTop;
         } else {
-            return this.elVideoWrapper.height();
+            return this.container.height();
         }
     }
 

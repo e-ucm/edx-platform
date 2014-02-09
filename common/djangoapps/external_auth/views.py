@@ -177,10 +177,10 @@ def _external_login_or_signup(request,
                     return default_render_failure(request, failure_msg)
             except User.DoesNotExist:
                 log.info('SHIB: No user for %s yet, doing signup', eamap.external_email)
-                return _signup(request, eamap)
+                return _signup(request, eamap, retfun)
         else:
             log.info('No user for %s yet. doing signup', eamap.external_email)
-            return _signup(request, eamap)
+            return _signup(request, eamap, retfun)
 
     # We trust shib's authentication, so no need to authenticate using the password again
     uname = internal_user.username
@@ -198,7 +198,7 @@ def _external_login_or_signup(request,
     if user is None:
         # we want to log the failure, but don't want to log the password attempted:
         AUDIT_LOG.warning('External Auth Login failed for "%s"', uname)
-        return _signup(request, eamap)
+        return _signup(request, eamap, retfun)
 
     if not user.is_active:
         AUDIT_LOG.warning('User "%s" is not active after external login', uname)
@@ -237,7 +237,7 @@ def _flatten_to_ascii(txt):
 
 
 @ensure_csrf_cookie
-def _signup(request, eamap):
+def _signup(request, eamap, retfun=None):
     """
     Present form to complete for signup via external authentication.
     Even though the user has external credentials, he/she still needs
@@ -246,11 +246,14 @@ def _signup(request, eamap):
 
     eamap is an ExternalAuthMap object, specifying the external user
     for which to complete the signup.
+
+    retfun is a function to execute for the return value, if immediate
+    signup is used.  That allows @ssl_login_shortcut() to work.
     """
     # save this for use by student.views.create_account
     request.session['ExternalAuthMap'] = eamap
 
-    if settings.FEATURES.get('AUTH_USE_MIT_CERTIFICATES_IMMEDIATE_SIGNUP', ''):
+    if settings.FEATURES.get('AUTH_USE_CERTIFICATES_IMMEDIATE_SIGNUP', ''):
         # do signin immediately, by calling create_account, instead of asking
         # student to fill in form.  MIT students already have information filed.
         username = eamap.external_email.split('@', 1)[0]
@@ -260,7 +263,11 @@ def _signup(request, eamap):
                          terms_of_service=u'true')
         log.info('doing immediate signup for %s, params=%s', username, post_vars)
         student.views.create_account(request, post_vars)
-        return redirect('/')
+        # should check return content for successful completion before
+        if retfun is not None:
+            return retfun()
+        else:
+            return redirect('/')
 
     # default conjoin name, no spaces, flattened to ascii b/c django can't handle unicode usernames, sadly
     # but this only affects username, not fullname
@@ -323,7 +330,7 @@ def _ssl_dn_extract_info(dn_string):
     return (user, email, fullname)
 
 
-def _ssl_get_cert_from_request(request):
+def ssl_get_cert_from_request(request):
     """
     Extract user information from certificate, if it exists, returning (user, email, fullname).
     Else return None.
@@ -349,11 +356,25 @@ def ssl_login_shortcut(fn):
     based on existing ExternalAuth record and MIT ssl certificate.
     """
     def wrapped(*args, **kwargs):
-        if not settings.FEATURES['AUTH_USE_MIT_CERTIFICATES']:
+        """
+        This manages the function wrapping, by determining whether to inject
+        the _external signup or just continuing to the internal function
+        call.
+        """
+
+        if not settings.FEATURES['AUTH_USE_CERTIFICATES']:
             return fn(*args, **kwargs)
         request = args[0]
-        cert = _ssl_get_cert_from_request(request)
+
+        if request.user and request.user.is_authenticated():  # don't re-authenticate
+            return fn(*args, **kwargs)
+
+        cert = ssl_get_cert_from_request(request)
         if not cert:		# no certificate information - show normal login window
+            return fn(*args, **kwargs)
+
+        def retfun():
+            """Wrap function again for call by _external_login_or_signup"""
             return fn(*args, **kwargs)
 
         (_user, email, fullname) = _ssl_dn_extract_info(cert)
@@ -363,7 +384,8 @@ def ssl_login_shortcut(fn):
             external_domain="ssl:MIT",
             credentials=cert,
             email=email,
-            fullname=fullname
+            fullname=fullname,
+            retfun=retfun
         )
     return wrapped
 
@@ -372,7 +394,7 @@ def ssl_login_shortcut(fn):
 def ssl_login(request):
     """
     This is called by branding.views.index when
-    FEATURES['AUTH_USE_MIT_CERTIFICATES'] = True
+    FEATURES['AUTH_USE_CERTIFICATES'] = True
 
     Used for MIT user authentication.  This presumes the web server
     (nginx) has been configured to require specific client
@@ -386,10 +408,10 @@ def ssl_login(request):
     Else continues on with student.views.index, and no authentication.
     """
     # Just to make sure we're calling this only at MIT:
-    if not settings.FEATURES['AUTH_USE_MIT_CERTIFICATES']:
+    if not settings.FEATURES['AUTH_USE_CERTIFICATES']:
         return HttpResponseForbidden()
 
-    cert = _ssl_get_cert_from_request(request)
+    cert = ssl_get_cert_from_request(request)
 
     if not cert:
         # no certificate information - go onward to main index
@@ -397,7 +419,7 @@ def ssl_login(request):
 
     (_user, email, fullname) = _ssl_dn_extract_info(cert)
 
-    retfun = functools.partial(student.views.index, request)
+    retfun = functools.partial(redirect, '/')
     return _external_login_or_signup(
         request,
         external_id=email,
@@ -818,23 +840,12 @@ def provider_login(request):
             url = endpoint + urlquote(user.username)
             response = openid_request.answer(True, None, url)
 
-            # TODO: for CS50 we are forcibly returning the username
-            # instead of fullname. In the OpenID simple registration
-            # extension, we don't have to return any fields we don't
-            # want to, even if they were marked as required by the
-            # Consumer. The behavior of what to do when there are
-            # missing fields is up to the Consumer. The proper change
-            # should only return the username, however this will likely
-            # break the CS50 client. Temporarily we will be returning
-            # username filling in for fullname in addition to username
-            # as sreg nickname.
-
             # Note too that this is hardcoded, and not really responding to
             # the extensions that were registered in the first place.
             results = {
                 'nickname': user.username,
                 'email': user.email,
-                'fullname': user.username
+                'fullname': user.profile.name,
             }
 
             # the request succeeded:

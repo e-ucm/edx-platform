@@ -50,16 +50,14 @@ def permitted(fn):
     return wrapper
 
 
-def ajax_content_response(request, course_id, content, template_name):
+def ajax_content_response(request, course_id, content):
     context = {
         'course_id': course_id,
         'content': content,
     }
-    html = render_to_string(template_name, context)
     user_info = cc.User.from_django_user(request.user).to_dict()
     annotated_content_info = utils.get_annotated_content_info(course_id, content, request.user, user_info)
     return JsonResponse({
-        'html': html,
         'content': utils.safe_content(content),
         'annotated_content_info': annotated_content_info,
     })
@@ -87,7 +85,7 @@ def create_thread(request, course_id, commentable_id):
     else:
         anonymous_to_peers = False
 
-    thread = cc.Thread(**extract(post, ['body', 'title', 'tags']))
+    thread = cc.Thread(**extract(post, ['body', 'title']))
     thread.update_attributes(**{
         'anonymous': anonymous,
         'anonymous_to_peers': anonymous_to_peers,
@@ -131,7 +129,7 @@ def create_thread(request, course_id, commentable_id):
     data = thread.to_dict()
     add_courseware_context([data], course)
     if request.is_ajax():
-        return ajax_content_response(request, course_id, data, 'discussion/ajax_create_thread.html')
+        return ajax_content_response(request, course_id, data)
     else:
         return JsonResponse(utils.safe_content(data))
 
@@ -144,10 +142,10 @@ def update_thread(request, course_id, thread_id):
     Given a course id and thread id, update a existing thread, used for both static and ajax submissions
     """
     thread = cc.Thread.find(thread_id)
-    thread.update_attributes(**extract(request.POST, ['body', 'title', 'tags']))
+    thread.update_attributes(**extract(request.POST, ['body', 'title']))
     thread.save()
     if request.is_ajax():
-        return ajax_content_response(request, course_id, thread.to_dict(), 'discussion/ajax_update_thread.html')
+        return ajax_content_response(request, course_id, thread.to_dict())
     else:
         return JsonResponse(utils.safe_content(thread.to_dict()))
 
@@ -184,7 +182,7 @@ def _create_comment(request, course_id, thread_id=None, parent_id=None):
         user = cc.User.from_django_user(request.user)
         user.follow(comment.thread)
     if request.is_ajax():
-        return ajax_content_response(request, course_id, comment.to_dict(), 'discussion/ajax_create_comment.html')
+        return ajax_content_response(request, course_id, comment.to_dict())
     else:
         return JsonResponse(utils.safe_content(comment.to_dict()))
 
@@ -199,7 +197,7 @@ def create_comment(request, course_id, thread_id):
     """
     if cc_settings.MAX_COMMENT_DEPTH is not None:
         if cc_settings.MAX_COMMENT_DEPTH < 0:
-            return JsonError("Comment level too deep")
+            return JsonError(_("Comment level too deep"))
     return _create_comment(request, course_id, thread_id=thread_id)
 
 
@@ -228,7 +226,7 @@ def update_comment(request, course_id, comment_id):
     comment.update_attributes(**extract(request.POST, ['body']))
     comment.save()
     if request.is_ajax():
-        return ajax_content_response(request, course_id, comment.to_dict(), 'discussion/ajax_update_comment.html')
+        return ajax_content_response(request, course_id, comment.to_dict())
     else:
         return JsonResponse(utils.safe_content(comment.to_dict()))
 
@@ -275,7 +273,7 @@ def create_sub_comment(request, course_id, comment_id):
     """
     if cc_settings.MAX_COMMENT_DEPTH is not None:
         if cc_settings.MAX_COMMENT_DEPTH <= cc.Comment.find(comment_id).depth:
-            return JsonError("Comment level too deep")
+            return JsonError(_("Comment level too deep"))
     return _create_comment(request, course_id, parent_id=comment_id)
 
 
@@ -508,41 +506,6 @@ def unfollow_user(request, course_id, followed_user_id):
     return JsonResponse({})
 
 
-@require_POST
-@login_required
-@permitted
-def update_moderator_status(request, course_id, user_id):
-    """
-    given a course id and user id, check if the user has moderator
-    and send back a user profile
-    """
-    is_moderator = request.POST.get('is_moderator', '').lower()
-    if is_moderator not in ["true", "false"]:
-        return JsonError("Must provide is_moderator as boolean value")
-    is_moderator = is_moderator == "true"
-    user = User.objects.get(id=user_id)
-    role = Role.objects.get(course_id=course_id, name="Moderator")
-    if is_moderator:
-        user.roles.add(role)
-    else:
-        user.roles.remove(role)
-    if request.is_ajax():
-        course = get_course_with_access(request.user, course_id, 'load')
-        discussion_user = cc.User(id=user_id, course_id=course_id)
-        context = {
-            'course': course,
-            'course_id': course_id,
-            'user': request.user,
-            'django_user': user,
-            'profiled_user': discussion_user.to_dict(),
-        }
-        return JsonResponse({
-            'html': render_to_string('discussion/ajax_user_profile.html', context)
-        })
-    else:
-        return JsonResponse({})
-
-
 @require_GET
 def search_similar_threads(request, course_id, commentable_id):
     """
@@ -562,15 +525,6 @@ def search_similar_threads(request, course_id, commentable_id):
     return JsonResponse({
         'html': render_to_string('discussion/_similar_posts.html', context)
     })
-
-
-@require_GET
-def tags_autocomplete(request, course_id):
-    value = request.GET.get('q', None)
-    results = []
-    if value:
-        results = cc.tags_autocomplete(value)
-    return JsonResponse(results)
 
 
 @require_POST
@@ -625,7 +579,7 @@ def upload(request, course_id):  # ajax upload file to a question or answer
         error = _('Error uploading file. Please contact the site administrator. Thank you.')
 
     if error == '':
-        result = 'Good'
+        result = _('Good')
         file_url = file_storage.url(new_file_name)
         parsed_url = urlparse.urlparse(file_url)
         file_url = urlparse.urlunparse(

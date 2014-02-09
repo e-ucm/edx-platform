@@ -34,21 +34,24 @@ from bulk_email.models import CourseEmail, CourseAuthorization
 from courseware import grades
 from courseware.access import has_access
 from courseware.courses import get_course_with_access, get_cms_course_link
-from courseware.roles import CourseStaffRole, CourseInstructorRole, CourseBetaTesterRole
+from student.roles import (
+    CourseStaffRole, CourseInstructorRole, CourseBetaTesterRole, GlobalStaff
+)
 from courseware.models import StudentModule
-from django_comment_common.models import (Role,
-                                          FORUM_ROLE_ADMINISTRATOR,
-                                          FORUM_ROLE_MODERATOR,
-                                          FORUM_ROLE_COMMUNITY_TA)
+from django_comment_common.models import (
+    Role, FORUM_ROLE_ADMINISTRATOR, FORUM_ROLE_MODERATOR, FORUM_ROLE_COMMUNITY_TA
+)
 from django_comment_client.utils import has_forum_access
 from instructor.offline_gradecalc import student_grades, offline_grades_available
 from instructor.views.tools import strip_if_string
-from instructor_task.api import (get_running_instructor_tasks,
-                                 get_instructor_task_history,
-                                 submit_rescore_problem_for_all_students,
-                                 submit_rescore_problem_for_student,
-                                 submit_reset_problem_attempts_for_all_students,
-                                 submit_bulk_course_email)
+from instructor_task.api import (
+    get_running_instructor_tasks,
+    get_instructor_task_history,
+    submit_rescore_problem_for_all_students,
+    submit_rescore_problem_for_student,
+    submit_reset_problem_attempts_for_all_students,
+    submit_bulk_course_email
+)
 from instructor_task.views import get_task_completion_info
 from edxmako.shortcuts import render_to_response, render_to_string
 from psychometrics import psychoanalyze
@@ -58,7 +61,8 @@ import track.views
 from xblock.field_data import DictFieldData
 from xblock.fields import ScopeIds
 from django.utils.translation import ugettext as _u
-from lms.lib.xblock.runtime import handler_prefix
+
+from microsite_configuration.middleware import MicrositeConfiguration
 
 log = logging.getLogger(__name__)
 
@@ -105,7 +109,7 @@ def instructor_dashboard(request, course_id):
     else:
         idash_mode = request.session.get('idash_mode', 'Grades')
 
-    enrollment_number = CourseEnrollment.objects.filter(course_id=course_id, is_active=1).count()
+    enrollment_number = CourseEnrollment.num_enrolled_in(course_id)
 
     # assemble some course statistics for output to instructor
     def get_course_stats_table():
@@ -133,9 +137,18 @@ def instructor_dashboard(request, course_id):
         else:
             response = file_pointer
         writer = csv.writer(response, dialect='excel', quotechar='"', quoting=csv.QUOTE_ALL)
-        writer.writerow(datatable['header'])
+        encoded_row = [unicode(s).encode('utf-8') for s in datatable['header']]
+        writer.writerow(encoded_row)
         for datarow in datatable['data']:
-            encoded_row = [unicode(s).encode('utf-8') for s in datarow]
+            # 's' here may be an integer, float (eg score) or string (eg student name)
+            encoded_row = [
+                # If s is already a UTF-8 string, trying to make a unicode
+                # object out of it will fail unless we pass in an encoding to
+                # the constructor. But we can't do that across the board,
+                # because s is often a numeric type. So just do this.
+                s if isinstance(s, str) else unicode(s).encode('utf-8')
+                for s in datarow
+            ]
             writer.writerow(encoded_row)
         return response
 
@@ -159,7 +172,7 @@ def instructor_dashboard(request, course_id):
 
         # complete the url using information about the current course:
         (org, course_name, _) = course_id.split("/")
-        return "i4x://" + org + "/" + course_name + "/" + urlname
+        return u"i4x://{org}/{name}/{url}".format(org=org, name=course_name, url=urlname)
 
     def get_student_from_identifier(unique_student_identifier):
         """Gets a student object using either an email address or username"""
@@ -170,10 +183,12 @@ def instructor_dashboard(request, course_id):
                 student = User.objects.get(email=unique_student_identifier)
             else:
                 student = User.objects.get(username=unique_student_identifier)
-            msg += "Found a single student.  "
+            msg += _u("Found a single student.  ")
         except User.DoesNotExist:
             student = None
-            msg += "<font color='red'>Couldn't find student with that email or username.  </font>"
+            msg += "<font color='red'>{text}</font>".format(
+                text=_u("Couldn't find student with that email or username.")
+            )
         return msg, student
 
     # process actions from form POST
@@ -211,20 +226,20 @@ def instructor_dashboard(request, course_id):
     if action == 'Dump list of enrolled students' or action == 'List enrolled students':
         log.debug(action)
         datatable = get_student_grade_summary_data(request, course, course_id, get_grades=False, use_offline=use_offline)
-        datatable['title'] = 'List of students enrolled in {0}'.format(course_id)
+        datatable['title'] = _u('List of students enrolled in {0}').format(course_id)
         track.views.server_track(request, "list-students", {}, page="idashboard")
 
     elif 'Dump Grades' in action:
         log.debug(action)
         datatable = get_student_grade_summary_data(request, course, course_id, get_grades=True, use_offline=use_offline)
-        datatable['title'] = 'Summary Grades of students enrolled in {0}'.format(course_id)
+        datatable['title'] = _u('Summary Grades of students enrolled in {0}').format(course_id)
         track.views.server_track(request, "dump-grades", {}, page="idashboard")
 
     elif 'Dump all RAW grades' in action:
         log.debug(action)
         datatable = get_student_grade_summary_data(request, course, course_id, get_grades=True,
                                                    get_raw_scores=True, use_offline=use_offline)
-        datatable['title'] = 'Raw Grades of students enrolled in {0}'.format(course_id)
+        datatable['title'] = _u('Raw Grades of students enrolled in {0}').format(course_id)
         track.views.server_track(request, "dump-grades-raw", {}, page="idashboard")
 
     elif 'Download CSV of all student grades' in action:
@@ -252,14 +267,22 @@ def instructor_dashboard(request, course_id):
         try:
             instructor_task = submit_rescore_problem_for_all_students(request, course_id, problem_url)
             if instructor_task is None:
-                msg += '<font color="red">Failed to create a background task for rescoring "{0}".</font>'.format(problem_url)
+                msg += '<font color="red">{text}</font>'.format(
+                    text=_u('Failed to create a background task for rescoring "{0}".').format(problem_url)
+                )
             else:
                 track.views.server_track(request, "rescore-all-submissions", {"problem": problem_url, "course": course_id}, page="idashboard")
         except ItemNotFoundError as err:
-            msg += '<font color="red">Failed to create a background task for rescoring "{0}": problem not found.</font>'.format(problem_url)
+            msg += '<font color="red">{text}</font>'.format(
+                text=_u('Failed to create a background task for rescoring "{0}": problem not found.').format(problem_url)
+            )
         except Exception as err:
             log.error("Encountered exception from rescore: {0}".format(err))
-            msg += '<font color="red">Failed to create a background task for rescoring "{0}": {1}.</font>'.format(problem_url, err.message)
+            msg += '<font color="red">{text}</font>'.format(
+                text=_u('Failed to create a background task for rescoring "{url}": {message}.').format(
+                    url=problem_url, message=err.message
+                )
+            )
 
     elif "Reset ALL students' attempts" in action:
         problem_urlname = request.POST.get('problem_for_all_students', '')
@@ -267,15 +290,23 @@ def instructor_dashboard(request, course_id):
         try:
             instructor_task = submit_reset_problem_attempts_for_all_students(request, course_id, problem_url)
             if instructor_task is None:
-                msg += '<font color="red">Failed to create a background task for resetting "{0}".</font>'.format(problem_url)
+                msg += '<font color="red">{text}</font>'.format(
+                    text=_u('Failed to create a background task for resetting "{0}".').format(problem_url)
+                )
             else:
                 track.views.server_track(request, "reset-all-attempts", {"problem": problem_url, "course": course_id}, page="idashboard")
         except ItemNotFoundError as err:
             log.error('Failure to reset: unknown problem "{0}"'.format(err))
-            msg += '<font color="red">Failed to create a background task for resetting "{0}": problem not found.</font>'.format(problem_url)
+            msg += '<font color="red">{text}</font>'.format(
+                text=_u('Failed to create a background task for resetting "{0}": problem not found.').format(problem_url)
+            )
         except Exception as err:
             log.error("Encountered exception from reset: {0}".format(err))
-            msg += '<font color="red">Failed to create a background task for resetting "{0}": {1}.</font>'.format(problem_url, err.message)
+            msg += '<font color="red">{text}</font>'.format(
+                text=_u('Failed to create a background task for resetting "{url}": {message}.').format(
+                    url=problem_url, message=err.message
+                )
+            )
 
     elif "Show Background Task History for Student" in action:
         # put this before the non-student case, since the use of "in" will cause this to be missed
@@ -316,12 +347,10 @@ def instructor_dashboard(request, course_id):
                     course_id=course_id,
                     module_state_key=module_state_key
                 )
-                msg += "Found module.  "
+                msg += _u("Found module.  ")
             except StudentModule.DoesNotExist as err:
-                error_msg = "Couldn't find module with that urlname: {0}. ".format(
-                    problem_urlname
-                )
-                msg += "<font color='red'>" + error_msg + "({0}) ".format(err) + "</font>"
+                error_msg = _u("Couldn't find module with that urlname: {url}. ").format(url=problem_urlname)
+                msg += "<font color='red'>{err_msg} ({err})</font>".format(err_msg=error_msg, err=err)
                 log.debug(error_msg)
 
         if student_module is not None:
@@ -329,7 +358,9 @@ def instructor_dashboard(request, course_id):
                 # delete the state
                 try:
                     student_module.delete()
-                    msg += "<font color='red'>Deleted student module state for {0}!</font>".format(module_state_key)
+                    msg += "<font color='red'>{text}</font>".format(
+                        text=_u("Deleted student module state for {state}!").format(state=module_state_key)
+                    )
                     event = {
                         "problem": module_state_key,
                         "student": unique_student_identifier,
@@ -342,10 +373,10 @@ def instructor_dashboard(request, course_id):
                         page="idashboard"
                     )
                 except Exception as err:
-                    error_msg = "Failed to delete module state for {0}/{1}. ".format(
-                        unique_student_identifier, problem_urlname
+                    error_msg = _u("Failed to delete module state for {id}/{url}. ").format(
+                        id=unique_student_identifier, url=problem_urlname
                     )
-                    msg += "<font color='red'>" + error_msg + "({0}) ".format(err) + "</font>"
+                    msg += "<font color='red'>{err_msg} ({err})</font>".format(err_msg=error_msg, err=err)
                     log.exception(error_msg)
             elif "Reset student's attempts" in action:
                 # modify the problem's state
@@ -365,24 +396,32 @@ def instructor_dashboard(request, course_id):
                         "course": course_id
                     }
                     track.views.server_track(request, "reset-student-attempts", event, page="idashboard")
-                    msg += "<font color='green'>Module state successfully reset!</font>"
-                except Exception as err:
-                    error_msg = "Couldn't reset module state for {0}/{1}. ".format(
-                        unique_student_identifier, problem_urlname
+                    msg += "<font color='green'>{text}</font>".format(
+                        text=_u("Module state successfully reset!")
                     )
-                    msg += "<font color='red'>" + error_msg + "({0}) ".format(err) + "</font>"
+                except Exception as err:
+                    error_msg = _u("Couldn't reset module state for {id}/{url}. ").format(
+                        id=unique_student_identifier, url=problem_urlname
+                    )
+                    msg += "<font color='red'>{err_msg} ({err})</font>".format(err_msg=error_msg, err=err)
                     log.exception(error_msg)
             else:
                 # "Rescore student's problem submission" case
                 try:
                     instructor_task = submit_rescore_problem_for_student(request, course_id, module_state_key, student)
                     if instructor_task is None:
-                        msg += '<font color="red">Failed to create a background task for rescoring "{0}" for student {1}.</font>'.format(module_state_key, unique_student_identifier)
+                        msg += '<font color="red">{text}</font>'.format(
+                            text=_u('Failed to create a background task for rescoring "{key}" for student {id}.').format(
+                                key=module_state_key, id=unique_student_identifier
+                            )
+                        )
                     else:
                         track.views.server_track(request, "rescore-student-submission", {"problem": module_state_key, "student": unique_student_identifier, "course": course_id}, page="idashboard")
                 except Exception as err:
-                    msg += '<font color="red">Failed to create a background task for rescoring "{0}": {1}.</font>'.format(
-                        module_state_key, err.message
+                    msg += '<font color="red">{text}</font>'.format(
+                        text=_u('Failed to create a background task for rescoring "{key}": {id}.').format(
+                            key=module_state_key, id=err.message
+                        )
                     )
                     log.exception("Encountered exception from rescore: student '{0}' problem '{1}'".format(
                         unique_student_identifier, module_state_key
@@ -397,7 +436,12 @@ def instructor_dashboard(request, course_id):
         if student is not None:
             progress_url = reverse('student_progress', kwargs={'course_id': course_id, 'student_id': student.id})
             track.views.server_track(request, "get-student-progress-page", {"student": unicode(student), "instructor": unicode(request.user), "course": course_id}, page="idashboard")
-            msg += "<a href='{0}' target='_blank'> Progress page for username: {1} with email address: {2}</a>.".format(progress_url, student.username, student.email)
+            msg += "<a href='{url}' target='_blank'>{text}</a>.".format(
+                url=progress_url,
+                text=_u("Progress page for username: {username} with email address: {email}").format(
+                    username=student.username, email=student.email
+                )
+            )
 
     #----------------------------------------
     # export grades to remote gradebook
@@ -411,7 +455,7 @@ def instructor_dashboard(request, course_id):
         allgrades = get_student_grade_summary_data(request, course, course_id, get_grades=True, use_offline=use_offline)
 
         assignments = [[x] for x in allgrades['assignments']]
-        datatable = {'header': ['Assignment Name']}
+        datatable = {'header': [_u('Assignment Name')]}
         datatable['data'] = assignments
         datatable['title'] = action
 
@@ -435,27 +479,31 @@ def instructor_dashboard(request, course_id):
         datatable = {}
         aname = request.POST.get('assignment_name', '')
         if not aname:
-            msg += "<font color='red'>Please enter an assignment name</font>"
+            msg += "<font color='red'>{text}</font>".format(text=_u("Please enter an assignment name"))
         else:
             allgrades = get_student_grade_summary_data(request, course, course_id, get_grades=True, use_offline=use_offline)
             if aname not in allgrades['assignments']:
-                msg += "<font color='red'>Invalid assignment name '%s'</font>" % aname
+                msg += "<font color='red'>{text}</font>".format(
+                    text=_u("Invalid assignment name '{name}'").format(name=aname)
+                )
             else:
                 aidx = allgrades['assignments'].index(aname)
-                datatable = {'header': ['External email', aname]}
+                datatable = {'header': [_u('External email'), aname]}
                 ddata = []
                 for x in allgrades['students']:	  # do one by one in case there is a student who has only partial grades
                     try:
                         ddata.append([x.email, x.grades[aidx]])
                     except IndexError:
-                        log.debug('No grade for assignment %s (%s) for student %s', aidx, aname, x.email)
+                        log.debug('No grade for assignment {idx} ({name}) for student {email}'.format(
+                            idx=aidx, name=aname, email=x.email)
+                        )
                 datatable['data'] = ddata
 
-                datatable['title'] = 'Grades for assignment "%s"' % aname
+                datatable['title'] = _u('Grades for assignment "{name}"').format(name=aname)
 
                 if 'Export CSV' in action:
                     # generate and return CSV file
-                    return return_csv('grades %s.csv' % aname, datatable)
+                    return return_csv('grades {name}.csv'.format(name=aname), datatable)
 
                 elif 'remote gradebook' in action:
                     file_pointer = StringIO()
@@ -470,12 +518,12 @@ def instructor_dashboard(request, course_id):
 
     elif 'List course staff' in action:
         role = CourseStaffRole(course.location)
-        datatable = _role_members_table(role, "List of Staff", course_id)
+        datatable = _role_members_table(role, _u("List of Staff"), course_id)
         track.views.server_track(request, "list-staff", {}, page="idashboard")
 
     elif 'List course instructors' in action and GlobalStaff().has_user(request.user):
         role = CourseInstructorRole(course.location)
-        datatable = _role_members_table(role, "List of Instructors", course_id)
+        datatable = _role_members_table(role, _u("List of Instructors"), course_id)
         track.views.server_track(request, "list-instructors", {}, page="idashboard")
 
     elif action == 'Add course staff':
@@ -515,8 +563,8 @@ def instructor_dashboard(request, course_id):
             return [u.username, u.email] + [getattr(p, x, '') for x in profkeys]
 
         datatable['data'] = [getdat(u) for u in enrolled_students]
-        datatable['title'] = 'Student profile data for course %s' % course_id
-        return return_csv('profiledata_%s.csv' % course_id, datatable)
+        datatable['title'] = _u('Student profile data for course {course_id}').format(course_id = course_id)
+        return return_csv('profiledata_{course_id}.csv'.format(course_id = course_id), datatable)
 
     elif 'Download CSV of all responses to problem' in action:
         problem_to_dump = request.POST.get('problem_to_dump', '')
@@ -529,17 +577,19 @@ def instructor_dashboard(request, course_id):
             smdat = StudentModule.objects.filter(course_id=course_id,
                                                  module_state_key=module_state_key)
             smdat = smdat.order_by('student')
-            msg += "Found %d records to dump " % len(smdat)
+            msg += _u("Found {num} records to dump.").format(num=smdat)
         except Exception as err:
-            msg += "<font color='red'>Couldn't find module with that urlname.  </font>"
-            msg += "<pre>%s</pre>" % escape(err)
+            msg += "<font color='red'>{text}</font><pre>{err}</pre>".format(
+                text=_u("Couldn't find module with that urlname."),
+                err=escape(err)
+            )
             smdat = []
 
         if smdat:
             datatable = {'header': ['username', 'state']}
             datatable['data'] = [[x.student.username, x.state] for x in smdat]
-            datatable['title'] = 'Student state for problem %s' % problem_to_dump
-            return return_csv('student_state_from_%s.csv' % problem_to_dump, datatable)
+            datatable['title'] = _u('Student state for problem {problem}').format(problem = problem_to_dump)
+            return return_csv('student_state_from_{problem}.csv'.format(problem = problem_to_dump), datatable)
 
     elif 'Download CSV of all student anonymized IDs' in action:
         students = User.objects.filter(
@@ -555,7 +605,7 @@ def instructor_dashboard(request, course_id):
 
     elif 'List beta testers' in action:
         role = CourseBetaTesterRole(course.location)
-        datatable = _role_members_table(role, "List of Beta Testers", course_id)
+        datatable = _role_members_table(role, _u("List of Beta Testers"), course_id)
         track.views.server_track(request, "list-beta-testers", {}, page="idashboard")
 
     elif action == 'Add beta testers':
@@ -694,9 +744,15 @@ def instructor_dashboard(request, course_id):
         else:
             # If sending the task succeeds, deliver a success message to the user.
             if email_to_option == "all":
-                email_msg = '<div class="msg msg-confirm"><p class="copy">Your email was successfully queued for sending. Please note that for large classes, it may take up to an hour (or more, if other courses are simultaneously sending email) to send all emails.</p></div>'
+                text = _u(
+                    "Your email was successfully queued for sending. "
+                    "Please note that for large classes, it may take up to an hour "
+                    "(or more, if other courses are simultaneously sending email) "
+                    "to send all emails."
+                )
             else:
-                email_msg = '<div class="msg msg-confirm"><p class="copy">Your email was successfully queued for sending.</p></div>'
+                text = _u('Your email was successfully queued for sending.')
+            email_msg = '<div class="msg msg-confirm"><p class="copy">{text}</p></div>'.format(text=text)
 
     elif "Show Background Email Task History" in action:
         message, datatable = get_background_task_table(course_id, task_type='bulk_course_email')
@@ -725,7 +781,7 @@ def instructor_dashboard(request, course_id):
         logs and swallows errors.
         """
         url = settings.ANALYTICS_SERVER_URL + \
-            "get?aname={}&course_id={}&apikey={}".format(analytics_name,
+            u"get?aname={}&course_id={}&apikey={}".format(analytics_name,
                                                          course_id,
                                                          settings.ANALYTICS_API_KEY)
         try:
@@ -763,7 +819,11 @@ def instructor_dashboard(request, course_id):
     # offline grades?
 
     if use_offline:
-        msg += "<br/><font color='orange'>Grades from %s</font>" % offline_grades_available(course_id)
+        msg += "<br/><font color='orange'>{text}</font>".format(
+            text=_u("Grades from {course_id}").format(
+                course_id=offline_grades_available(course_id)
+            )
+        )
 
     # generate list of pending background tasks
     if settings.FEATURES.get('ENABLE_INSTRUCTOR_BACKGROUND_TASKS'):
@@ -787,7 +847,7 @@ def instructor_dashboard(request, course_id):
             ScopeIds(None, None, None, 'i4x://dummy_org/dummy_course/html/dummy_name')
         )
         fragment = html_module.render('studio_view')
-        fragment = wrap_xblock(partial(handler_prefix, course_id), html_module, 'studio_view', fragment, None)
+        fragment = wrap_xblock('LmsRuntime', html_module, 'studio_view', fragment, None, extra_data={"course-id": course_id})
         email_editor = fragment.content
 
     # Enable instructor email only if the following conditions are met:
@@ -853,17 +913,17 @@ def _do_remote_gradebook(user, course, action, args=None, files=None):
     '''
     rg = course.remote_gradebook
     if not rg:
-        msg = "No remote gradebook defined in course metadata"
+        msg = _u("No remote gradebook defined in course metadata")
         return msg, {}
 
     rgurl = settings.FEATURES.get('REMOTE_GRADEBOOK_URL', '')
     if not rgurl:
-        msg = "No remote gradebook url defined in settings.FEATURES"
+        msg = _u("No remote gradebook url defined in settings.FEATURES")
         return msg, {}
 
     rgname = rg.get('name', '')
     if not rgname:
-        msg = "No gradebook name defined in course remote_gradebook metadata"
+        msg = _u("No gradebook name defined in course remote_gradebook metadata")
         return msg, {}
 
     if args is None:
@@ -875,19 +935,19 @@ def _do_remote_gradebook(user, course, action, args=None, files=None):
         resp = requests.post(rgurl, data=data, verify=False, files=files)
         retdict = json.loads(resp.content)
     except Exception as err:
-        msg = "Failed to communicate with gradebook server at %s<br/>" % rgurl
-        msg += "Error: %s" % err
-        msg += "<br/>resp=%s" % resp.content
-        msg += "<br/>data=%s" % data
+        msg = _u("Failed to communicate with gradebook server at {url}").format(url = rgurl) + "<br/>"
+        msg += _u("Error: {err}").format(err = err)
+        msg += "<br/>resp={resp}".format(resp = resp.content)
+        msg += "<br/>data={data}".format(data = data)
         return msg, {}
 
-    msg = '<pre>%s</pre>' % retdict['msg'].replace('\n', '<br/>')
+    msg = '<pre>{msg}</pre>'.format(msg = retdict['msg'].replace('\n', '<br/>'))
     retdata = retdict['data']  	# a list of dicts
 
     if retdata:
         datatable = {'header': retdata[0].keys()}
         datatable['data'] = [x.values() for x in retdata]
-        datatable['title'] = 'Remote gradebook response for %s' % action
+        datatable['title'] = _u('Remote gradebook response for {action}').format(action = action)
         datatable['retdata'] = retdata
     else:
         datatable = {}
@@ -906,13 +966,13 @@ def _list_course_forum_members(course_id, rolename, datatable):
     Returns message status string to append to displayed message, if role is unknown.
     """
     # make sure datatable is set up properly for display first, before checking for errors
-    datatable['header'] = ['Username', 'Full name', 'Roles']
-    datatable['title'] = 'List of Forum {0}s in course {1}'.format(rolename, course_id)
+    datatable['header'] = [_u('Username'), _u('Full name'), _u('Roles')]
+    datatable['title'] = _u('List of Forum {name}s in course {id}').format(name = rolename, id = course_id)
     datatable['data'] = []
     try:
         role = Role.objects.get(name=rolename, course_id=course_id)
     except Role.DoesNotExist:
-        return '<font color="red">Error: unknown rolename "{0}"</font>'.format(rolename)
+        return '<font color="red">' + _u('Error: unknown rolename "{0}"').format(rolename) + '</font>'
     uset = role.users.all().order_by('username')
     msg = 'Role = {0}'.format(rolename)
     log.debug('role={0}'.format(rolename))
@@ -936,11 +996,11 @@ def _update_forum_role_membership(uname, course, rolename, add_or_remove):
     try:
         user = User.objects.get(username=uname)
     except User.DoesNotExist:
-        return '<font color="red">Error: unknown username "{0}"</font>'.format(uname)
+        return '<font color="red">' + _u('Error: unknown username "{0}"').format(uname) + '</font>'
     try:
         role = Role.objects.get(name=rolename, course_id=course.id)
     except Role.DoesNotExist:
-        return '<font color="red">Error: unknown rolename "{0}"</font>'.format(rolename)
+        return '<font color="red">' + _u('Error: unknown rolename "{0}"').format(rolename) + '</font>'
 
     # check whether role already has the specified user:
     alreadyexists = role.users.filter(username=uname).exists()
@@ -948,19 +1008,19 @@ def _update_forum_role_membership(uname, course, rolename, add_or_remove):
     log.debug('rolename={0}'.format(rolename))
     if add_or_remove == FORUM_ROLE_REMOVE:
         if not alreadyexists:
-            msg = '<font color="red">Error: user "{0}" does not have rolename "{1}", cannot remove</font>'.format(uname, rolename)
+            msg = '<font color="red">' + _u('Error: user "{0}" does not have rolename "{1}", cannot remove').format(uname, rolename) + '</font>'
         else:
             user.roles.remove(role)
-            msg = '<font color="green">Removed "{0}" from "{1}" forum role = "{2}"</font>'.format(user, course.id, rolename)
+            msg = '<font color="green">' + _u('Removed "{0}" from "{1}" forum role = "{2}"').format(user, course.id, rolename) + '</font>'
     else:
         if alreadyexists:
-            msg = '<font color="red">Error: user "{0}" already has rolename "{1}", cannot add</font>'.format(uname, rolename)
+            msg = '<font color="red">' + _u('Error: user "{0}" already has rolename "{1}", cannot add').format(uname, rolename) + '</font>'
         else:
             if (rolename == FORUM_ROLE_ADMINISTRATOR and not has_access(user, course, 'staff')):
-                msg = '<font color="red">Error: user "{0}" should first be added as staff before adding as a forum administrator, cannot add</font>'.format(uname)
+                msg = '<font color="red">' + _u('Error: user "{0}" should first be added as staff before adding as a forum administrator, cannot add').format(uname) + '</font>'
             else:
                 user.roles.add(role)
-                msg = '<font color="green">Added "{0}" to "{1}" forum role = "{2}"</font>'.format(user, course.id, rolename)
+                msg = '<font color="green">' + _u('Added "{0}" to "{1}" forum role = "{2}"').format(user, course.id, rolename) + '</font>'
 
     return msg
 
@@ -970,7 +1030,7 @@ def _role_members_table(role, title, course_id):
     Return a data table of usernames and names of users in group_name.
 
     Arguments:
-        role -- a courseware.roles.AccessRole
+        role -- a student.roles.AccessRole
         title -- a descriptive title to show the user
 
     Returns:
@@ -980,9 +1040,9 @@ def _role_members_table(role, title, course_id):
         'title': "{title} in course {course}"
     """
     uset = role.users_with_role()
-    datatable = {'header': ['Username', 'Full name']}
+    datatable = {'header': [_u('Username'), _u('Full name')]}
     datatable['data'] = [[x.username, x.profile.name] for x in uset]
-    datatable['title'] = '{0} in course {1}'.format(title, course_id)
+    datatable['title'] = _u('{0} in course {1}').format(title, course_id)
     return datatable
 
 
@@ -1048,7 +1108,7 @@ def remove_user_from_role(request, username_or_email, role, group_title, event_n
     Arguments:
        request: django request--used for tracking log
        username_or_email: who to remove.  Decide if it's an email by presense of an '@'
-       role: A courseware.roles.AccessRole
+       role: A student.roles.AccessRole
        group_title: what to call this group in messages to user--e.g. "beta-testers".
        event_name: what to call this event when logging to tracking logs.
 
@@ -1105,7 +1165,7 @@ def get_student_grade_summary_data(request, course, course_id, get_grades=True, 
         courseenrollment__is_active=1,
     ).prefetch_related("groups").order_by('username')
 
-    header = ['ID', 'Username', 'Full Name', 'edX email', 'External email']
+    header = [_u('ID'), _u('Username'), _u('Full Name'), _u('edX email'), _u('External email')]
     assignments = []
     if get_grades and enrolled_students.count() > 0:
         # just to construct the header
@@ -1223,7 +1283,10 @@ def _do_enroll_students(course, course_id, students, overload=False, auto_enroll
         ceaset.delete()
 
     if email_students:
-        stripped_site_name = settings.SITE_NAME
+        stripped_site_name = MicrositeConfiguration.get_microsite_configuration_value(
+            'SITE_NAME',
+            settings.SITE_NAME
+        )
         registration_url = 'https://' + stripped_site_name + reverse('student.views.register_user')
         #Composition of email
         d = {'site_name': stripped_site_name,
@@ -1232,7 +1295,7 @@ def _do_enroll_students(course, course_id, students, overload=False, auto_enroll
              'auto_enroll': auto_enroll,
              'course_url': 'https://' + stripped_site_name + '/courses/' + course_id,
              'course_about_url': 'https://' + stripped_site_name + '/courses/' + course_id + '/about',
-             'is_shib_course': is_shib_course,
+             'is_shib_course': is_shib_course
              }
 
     for student in new_students:
@@ -1290,7 +1353,7 @@ def _do_enroll_students(course, course_id, students, overload=False, auto_enroll
 
     datatable = {'header': ['StudentEmail', 'action']}
     datatable['data'] = [[x, status[x]] for x in sorted(status)]
-    datatable['title'] = 'Enrollment of students'
+    datatable['title'] = _u('Enrollment of students')
 
     def sf(stat):
         return [x for x in status if status[x] == stat]
@@ -1314,7 +1377,10 @@ def _do_unenroll_students(course_id, students, email_students=False):
     old_students, _ = get_and_clean_student_list(students)
     status = dict([x, 'unprocessed'] for x in old_students)
 
-    stripped_site_name = settings.SITE_NAME
+    stripped_site_name = MicrositeConfiguration.get_microsite_configuration_value(
+        'SITE_NAME',
+        settings.SITE_NAME
+    )
     if email_students:
         course = course_from_id(course_id)
         #Composition of email
@@ -1363,7 +1429,7 @@ def _do_unenroll_students(course_id, students, email_students=False):
 
     datatable = {'header': ['StudentEmail', 'action']}
     datatable['data'] = [[x, status[x]] for x in sorted(status)]
-    datatable['title'] = 'Un-enrollment of students'
+    datatable['title'] = _u('Un-enrollment of students')
 
     data = dict(datatable=datatable)
     return data
@@ -1388,22 +1454,43 @@ def send_mail_to_student(student, param_dict):
     Returns a boolean indicating whether the email was sent successfully.
     """
 
-    EMAIL_TEMPLATE_DICT = {'allowed_enroll': ('emails/enroll_email_allowedsubject.txt', 'emails/enroll_email_allowedmessage.txt'),
-                           'enrolled_enroll': ('emails/enroll_email_enrolledsubject.txt', 'emails/enroll_email_enrolledmessage.txt'),
-                           'allowed_unenroll': ('emails/unenroll_email_subject.txt', 'emails/unenroll_email_allowedmessage.txt'),
-                           'enrolled_unenroll': ('emails/unenroll_email_subject.txt', 'emails/unenroll_email_enrolledmessage.txt')}
+    # add some helpers and microconfig subsitutions
+    if 'course' in param_dict:
+        param_dict['course_name'] = param_dict['course'].display_name_with_default
+    param_dict['site_name'] = MicrositeConfiguration.get_microsite_configuration_value(
+        'SITE_NAME',
+        param_dict.get('site_name', '')
+    )
 
-    subject_template, message_template = EMAIL_TEMPLATE_DICT.get(param_dict['message'], (None, None))
+    subject = None
+    message = None
+
+    message_type = param_dict['message']
+
+    email_template_dict = {
+        'allowed_enroll': ('emails/enroll_email_allowedsubject.txt', 'emails/enroll_email_allowedmessage.txt'),
+        'enrolled_enroll': ('emails/enroll_email_enrolledsubject.txt', 'emails/enroll_email_enrolledmessage.txt'),
+        'allowed_unenroll': ('emails/unenroll_email_subject.txt', 'emails/unenroll_email_allowedmessage.txt'),
+        'enrolled_unenroll': ('emails/unenroll_email_subject.txt', 'emails/unenroll_email_enrolledmessage.txt'),
+    }
+
+    subject_template, message_template = email_template_dict.get(message_type, (None, None))
     if subject_template is not None and message_template is not None:
         subject = render_to_string(subject_template, param_dict)
         message = render_to_string(message_template, param_dict)
 
+    if subject and message:
         # Remove leading and trailing whitespace from body
         message = message.strip()
 
         # Email subject *must not* contain newlines
         subject = ''.join(subject.splitlines())
-        send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [student], fail_silently=False)
+        from_address = MicrositeConfiguration.get_microsite_configuration_value(
+            'email_from_address',
+            settings.DEFAULT_FROM_EMAIL
+        )
+
+        send_mail(subject, message, from_address, [student], fail_silently=False)
 
         return True
     else:
@@ -1440,14 +1527,16 @@ def get_answers_distribution(request, course_id):
     """
     course = get_course_with_access(request.user, course_id, 'staff')
 
-    dist = grades.answer_distributions(request, course)
+    dist = grades.answer_distributions(course.id)
 
     d = {}
     d['header'] = ['url_name', 'display name', 'answer id', 'answer', 'count']
 
-    d['data'] = [[url_name, display_name, answer_id, a, answers[a]]
-                 for (url_name, display_name, answer_id), answers in dist.items()
-                 for a in answers]
+    d['data'] = [
+        [url_name, display_name, answer_id, a, answers[a]]
+        for (url_name, display_name, answer_id), answers in sorted(dist.items())
+        for a in answers
+    ]
     return d
 
 
@@ -1546,10 +1635,10 @@ def get_background_task_table(course_id, problem_url=None, student=None, task_ty
         if problem_url is None:
             msg += '<font color="red">Failed to find any background tasks for course "{course}".</font>'.format(course=course_id)
         elif student is not None:
-            template = '<font color="red">Failed to find any background tasks for course "{course}", module "{problem}" and student "{student}".</font>'
+            template = '<font color="red">' + _u('Failed to find any background tasks for course "{course}", module "{problem}" and student "{student}".') + '</font>'
             msg += template.format(course=course_id, problem=problem_url, student=student.username)
         else:
-            msg += '<font color="red">Failed to find any background tasks for course "{course}" and module "{problem}".</font>'.format(course=course_id, problem=problem_url)
+            msg += '<font color="red">' + _u('Failed to find any background tasks for course "{course}" and module "{problem}".').format(course=course_id, problem=problem_url) + '</font>'
     else:
         datatable['header'] = ["Task Type",
                                "Task Id",

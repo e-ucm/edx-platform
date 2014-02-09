@@ -18,7 +18,7 @@ Feature: LMS.Video component
   # 3
   # Youtube testing
   Scenario: Video component is fully rendered in the LMS in Youtube mode with HTML5 sources
-    Given youtube server is up and response time is  0.4 seconds
+    Given youtube server is up and response time is 0.4 seconds
     And the course has a Video component in Youtube_HTML5 mode
     Then when I view the video it has rendered in Youtube mode
 
@@ -45,3 +45,25 @@ Feature: LMS.Video component
     Given the course has a Video component in HTML5_Unsupported_Video mode
     Then error message is shown
     And error message has correct text
+
+  # 8
+  Scenario: Video component stores speed correctly when each video is in separate sequence.
+    Given I am registered for the course "test_course"
+    And it has a video "A" in "Youtube" mode in position "1" of sequential
+    And a video "B" in "Youtube" mode in position "2" of sequential
+    And a video "C" in "Youtube" mode in position "3" of sequential
+    And I open the section with videos
+    And I select the "2.0" speed on video "A"
+    And I select the "0.50" speed on video "B"
+    When I open video "C"
+    Then video "C" should start playing at speed "0.50"
+    When I open video "A"
+    Then video "A" should start playing at speed "2.0"
+    And I reload the page
+    When I open video "A"
+    Then video "A" should start playing at speed "2.0"
+    And I select the "1.0" speed on video "A"
+    When I open video "B"
+    Then video "B" should start playing at speed "0.50"
+    When I open video "C"
+    Then video "C" should start playing at speed "1.0"

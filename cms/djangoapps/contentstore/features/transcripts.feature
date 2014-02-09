@@ -1,4 +1,5 @@
-Feature: Video Component Editor
+@shard_3
+Feature: CMS.Transcripts
   As a course author, I want to be able to create video components.
 
     # For transcripts acceptance tests there are 3 available caption
@@ -145,20 +146,21 @@ Feature: Video Component Editor
         Then I see status message "found"
         And I see value "t_not_exist" in the field "HTML5 Transcript"
 
+    # Disabled 1/29/14 due to flakiness observed in master
     #10
-    Scenario: User sets youtube_id w/o local but with server subs and one html5 link w/o subs
-        Given I have created a Video component
-        And I edit the component
-
-        And I enter a "http://youtu.be/t__eq_exist" source to field number 1
-        Then I see status message "not found"
-        And I see button "import"
-        And I click transcript button "import"
-        Then I see status message "found"
-
-        And I enter a "t_not_exist.mp4" source to field number 2
-        Then I see status message "found"
-        And I see value "t__eq_exist" in the field "HTML5 Transcript"
+    #Scenario: User sets youtube_id w/o local but with server subs and one html5 link w/o subs
+    #    Given I have created a Video component
+    #    And I edit the component
+    #
+    #    And I enter a "http://youtu.be/t__eq_exist" source to field number 1
+    #    Then I see status message "not found"
+    #    And I see button "import"
+    #    And I click transcript button "import"
+    #    Then I see status message "found"
+    #
+    #    And I enter a "t_not_exist.mp4" source to field number 2
+    #    Then I see status message "found"
+    #    And I see value "t__eq_exist" in the field "HTML5 Transcript"
 
     #11
     Scenario: User sets youtube_id w/o local but with server subs and one html5 link w/o transcripts w/o import action, then another one html5 link w/o transcripts
@@ -652,4 +654,26 @@ Feature: Video Component Editor
         And I save changes
         Then when I view the video it does show the captions
         And I see "LILA FISHER: Hi, welcome to Edx." text in the captions
+
+    #35
+    Scenario: After reverting Transcripts field in the Advanced tab "not found" message should be visible
+        Given I have created a Video component
+        And I edit the component
+
+        And I enter a "t_not_exist.mp4" source to field number 1
+        Then I see status message "not found"
+        And I upload the transcripts file "chinese_transcripts.srt"
+        Then I see status message "uploaded_successfully"
+
+        And I save changes
+        Then I see "好 各位同学" text in the captions
+        And I edit the component
+
+        And I open tab "Advanced"
+        And I revert the transcript field "HTML5 Transcript"
+
+        And I save changes
+        Then when I view the video it does not show the captions
+        And I edit the component
+        Then I see status message "not found"
 
