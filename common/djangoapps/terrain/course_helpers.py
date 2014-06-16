@@ -1,7 +1,6 @@
 # pylint: disable=C0111
 # pylint: disable=W0621
 
-import urllib
 from lettuce import world
 from django.contrib.auth.models import User, Group
 from student.models import CourseEnrollment
@@ -28,13 +27,12 @@ def create_user(uname, password):
 
 
 @world.absorb
-def log_in(username='robot', password='test', email='robot@edx.org', name="Robot"):
+def log_in(username='robot', password='test', email='robot@edx.org', name='Robot'):
     """
     Use the auto_auth feature to programmatically log the user in
     """
-    url = '/auto_auth'
-    params = { 'username': username, 'password': password, 'email': email, 'full_name': name }
-    url += "?" + urllib.urlencode(params)
+    url = '/auto_auth?username=%s&password=%s&name=%s&email=%s' % (username,
+          password, name, email)
     world.visit(url)
 
     # Save the user info in the world scenario_dict for use in the tests
@@ -46,8 +44,6 @@ def log_in(username='robot', password='test', email='robot@edx.org', name="Robot
 def register_by_course_id(course_id, username='robot', password='test', is_staff=False):
     create_user(username, password)
     user = User.objects.get(username=username)
-    # Note: this flag makes the user global staff - that is, an edX employee - not a course staff.
-    # See courseware.tests.factories for StaffFactory and InstructorFactory.
     if is_staff:
         user.is_staff = True
         user.save()
@@ -55,13 +51,18 @@ def register_by_course_id(course_id, username='robot', password='test', is_staff
 
 
 @world.absorb
-def enroll_user(user, course_id):
-    # Activate user
-    registration = world.RegistrationFactory(user=user)
-    registration.register(user)
-    registration.activate()
-    # Enroll them in the course
-    CourseEnrollment.enroll(user, course_id)
+def add_to_course_staff(username, course_num):
+    """
+    Add the user with `username` to the course staff group
+    for `course_num`.
+    """
+    # Based on code in lms/djangoapps/courseware/access.py
+    group_name = "instructor_{}".format(course_num)
+    group, _ = Group.objects.get_or_create(name=group_name)
+    group.save()
+
+    user = User.objects.get(username=username)
+    user.groups.add(group)
 
 
 @world.absorb

@@ -2,7 +2,7 @@
 // define() functions from Require JS available inside the anonymous function.
 (function (requirejs, require, define) {
 
-define('Graph', [], function () {
+define('Graph', ['logme'], function (logme) {
 
     return Graph;
 
@@ -19,7 +19,7 @@ define('Graph', [], function () {
         // proceed.
         plotDiv = $('#' + gstId + '_plot');
         if (plotDiv.length === 0) {
-            console.log('ERROR: Could not find the plot DIV with ID "' + gstId + '_plot".');
+            logme('ERROR: Could not find the plot DIV with ID "' + gstId + '_plot".');
 
             return;
         }
@@ -40,13 +40,13 @@ define('Graph', [], function () {
 
         // Configure some settings for the graph.
         if (setGraphXRange() === false) {
-            console.log('ERROR: Could not configure the xrange. Will not continue.');
+            logme('ERROR: Could not configure the xrange. Will not continue.');
 
             return;
         }
 
         if (setGraphAxes() === false) {
-            console.log('ERROR: Could not process configuration for the axes.');
+            logme('ERROR: Could not process configuration for the axes.');
 
             return;
         }
@@ -62,7 +62,7 @@ define('Graph', [], function () {
         createFunctions();
 
         if (functions.length === 0) {
-            console.log('ERROR: No functions were specified, or something went wrong.');
+            logme('ERROR: No functions were specified, or something went wrong.');
 
             return;
         }
@@ -91,13 +91,13 @@ define('Graph', [], function () {
             }
 
             if (typeof config.plot.bar_width !== 'string') {
-                console.log('ERROR: The parameter config.plot.bar_width must be a string.');
+                logme('ERROR: The parameter config.plot.bar_width must be a string.');
 
                 return;
             }
 
             if (isFinite(graphBarWidth = parseFloat(config.plot.bar_width)) === false) {
-                console.log('ERROR: The parameter config.plot.bar_width is not a valid floating number.');
+                logme('ERROR: The parameter config.plot.bar_width is not a valid floating number.');
                 graphBarWidth = 1;
 
                 return;
@@ -112,7 +112,7 @@ define('Graph', [], function () {
             }
 
             if (typeof config.plot.bar_align !== 'string') {
-                console.log('ERROR: The parameter config.plot.bar_align must be a string.');
+                logme('ERROR: The parameter config.plot.bar_align must be a string.');
 
                 return;
             }
@@ -121,7 +121,7 @@ define('Graph', [], function () {
                 (config.plot.bar_align.toLowerCase() !== 'left') &&
                 (config.plot.bar_align.toLowerCase() !== 'center')
             ) {
-                console.log('ERROR: Property config.plot.bar_align can be one of "left", or "center".');
+                logme('ERROR: Property config.plot.bar_align can be one of "left", or "center".');
 
                 return;
             }
@@ -159,24 +159,24 @@ define('Graph', [], function () {
                 fontWeight, fontColor;
 
             if (obj.hasOwnProperty('@text') === false) {
-                console.log('ERROR: You did not define a "text" attribute for the moving_label.');
+                logme('ERROR: You did not define a "text" attribute for the moving_label.');
 
                 return false;
             }
             if (typeof obj['@text'] !== 'string') {
-                console.log('ERROR: "text" attribute is not a string.');
+                logme('ERROR: "text" attribute is not a string.');
 
                 return false;
             }
             labelText = obj['@text'];
 
             if (obj.hasOwnProperty('#text') === false) {
-                console.log('ERROR: moving_label is missing function declaration.');
+                logme('ERROR: moving_label is missing function declaration.');
 
                 return false;
             }
             if (typeof obj['#text'] !== 'string') {
-                console.log('ERROR: Function declaration is not a string.');
+                logme('ERROR: Function declaration is not a string.');
 
                 return false;
             }
@@ -201,7 +201,7 @@ define('Graph', [], function () {
                 ) {
                     fontWeight = obj['@weight'];
                 } else {
-                    console.log('ERROR: Moving label can have a weight property of "normal" or "bold".');
+                    logme('ERROR: Moving label can have a weight property of "normal" or "bold".');
                 }
             }
 
@@ -221,7 +221,7 @@ define('Graph', [], function () {
                 }
             } else {
                 if (funcString.search(/return/i) === -1) {
-                    console.log(
+                    logme(
                         'ERROR: You have specified a JavaScript ' +
                         'function without a "return" statemnt. Your ' +
                         'function will return "undefined" by default.'
@@ -235,12 +235,12 @@ define('Graph', [], function () {
             try {
                 func = Function.apply(null, paramNames);
             } catch (err) {
-                console.log(
+                logme(
                     'ERROR: The function body "' +
                         funcString +
                         '" was not converted by the Function constructor.'
                 );
-                console.log('Error message: "' + err.message + '"');
+                logme('Error message: "' + err.message + '"');
 
                 if (state.showDebugInfo) {
                     $('#' + gstId).html('<div style="color: red;">' + 'ERROR IN XML: Could not create a function from the string "' + funcString + '".' + '</div>');
@@ -317,12 +317,12 @@ define('Graph', [], function () {
                     } else if (asyObj['@type'].toLowerCase() === 'y') {
                         newAsyObj.type = 'y';
                     } else {
-                        console.log('ERROR: Attribute "type" for asymptote can be "x" or "y".');
+                        logme('ERROR: Attribute "type" for asymptote can be "x" or "y".');
 
                         return false;
                     }
                 } else {
-                    console.log('ERROR: Attribute "type" for asymptote is not specified.');
+                    logme('ERROR: Attribute "type" for asymptote is not specified.');
 
                     return false;
                 }
@@ -330,7 +330,7 @@ define('Graph', [], function () {
                 if (typeof asyObj['#text'] === 'string') {
                     funcString = asyObj['#text'];
                 } else {
-                    console.log('ERROR: Function body for asymptote is not specified.');
+                    logme('ERROR: Function body for asymptote is not specified.');
 
                     return false;
                 }
@@ -363,7 +363,7 @@ define('Graph', [], function () {
                     }
                 } else {
                     if (funcString.search(/return/i) === -1) {
-                        console.log(
+                        logme(
                             'ERROR: You have specified a JavaScript ' +
                             'function without a "return" statemnt. Your ' +
                             'function will return "undefined" by default.'
@@ -376,8 +376,8 @@ define('Graph', [], function () {
                 try {
                     func = Function.apply(null, paramNames);
                 } catch (err) {
-                    console.log('ERROR: Asymptote function body could not be converted to function object.');
-                    console.log('Error message: "".' + err.message);
+                    logme('ERROR: Asymptote function body could not be converted to function object.');
+                    logme('Error message: "".' + err.message);
 
                     return false;
                 }
@@ -398,12 +398,12 @@ define('Graph', [], function () {
 
             if (typeof config.plot['xticks'] === 'string') {
                 if (processTicks(config.plot['xticks'], xaxis, 'xunits') === false) {
-                    console.log('ERROR: Could not process the ticks for x-axis.');
+                    logme('ERROR: Could not process the ticks for x-axis.');
 
                     return false;
                 }
             } else {
-                // console.log('MESSAGE: "xticks" were not specified. Using defaults.');
+                // logme('MESSAGE: "xticks" were not specified. Using defaults.');
 
                 return false;
             }
@@ -413,12 +413,12 @@ define('Graph', [], function () {
             };
             if (typeof config.plot['yticks'] === 'string') {
                 if (processTicks(config.plot['yticks'], yaxis, 'yunits') === false) {
-                    console.log('ERROR: Could not process the ticks for y-axis.');
+                    logme('ERROR: Could not process the ticks for y-axis.');
 
                     return false;
                 }
             } else {
-                // console.log('MESSAGE: "yticks" were not specified. Using defaults.');
+                // logme('MESSAGE: "yticks" were not specified. Using defaults.');
 
                 return false;
             }
@@ -466,7 +466,7 @@ define('Graph', [], function () {
                     try {
                         tmpObj = JSON.parse(config.plot[axisName + 'ticks_names']);
                     } catch (err) {
-                        console.log(
+                        logme(
                             'ERROR: plot.' + axisName + 'ticks_names is not a valid JSON string.',
                             'Error message: "' + err.message + '".'
                         );
@@ -494,7 +494,7 @@ define('Graph', [], function () {
                 ticksBlobs = ticksStr.split(',');
 
                 if (ticksBlobs.length !== 3) {
-                    console.log('ERROR: Did not get 3 blobs from ticksStr = "' + ticksStr + '".');
+                    logme('ERROR: Did not get 3 blobs from ticksStr = "' + ticksStr + '".');
 
                     return false;
                 }
@@ -503,7 +503,7 @@ define('Graph', [], function () {
                 if (isNaN(tempFloat) === false) {
                     ticksObj.min = tempFloat;
                 } else {
-                    console.log('ERROR: Invalid "min". ticksBlobs[0] = ', ticksBlobs[0]);
+                    logme('ERROR: Invalid "min". ticksBlobs[0] = ', ticksBlobs[0]);
 
                     return false;
                 }
@@ -512,7 +512,7 @@ define('Graph', [], function () {
                 if (isNaN(tempFloat) === false) {
                     ticksObj.tickSize = tempFloat;
                 } else {
-                    console.log('ERROR: Invalid "tickSize". ticksBlobs[1] = ', ticksBlobs[1]);
+                    logme('ERROR: Invalid "tickSize". ticksBlobs[1] = ', ticksBlobs[1]);
 
                     return false;
                 }
@@ -521,7 +521,7 @@ define('Graph', [], function () {
                 if (isNaN(tempFloat) === false) {
                     ticksObj.max = tempFloat;
                 } else {
-                    console.log('ERROR: Invalid "max". ticksBlobs[2] = ', ticksBlobs[2]);
+                    logme('ERROR: Invalid "max". ticksBlobs[2] = ', ticksBlobs[2]);
 
                     return false;
                 }
@@ -529,7 +529,7 @@ define('Graph', [], function () {
                 // Is the starting tick to the left of the ending tick (on the
                 // x-axis)? If not, set default starting and ending tick.
                 if (ticksObj.min >= ticksObj.max) {
-                    console.log('ERROR: Ticks min >= max.');
+                    logme('ERROR: Ticks min >= max.');
 
                     return false;
                 }
@@ -538,7 +538,7 @@ define('Graph', [], function () {
                 // least 3 ticks. If not, set a tickSize which will produce
                 // 11 ticks. tickSize is the spacing between the ticks.
                 if (ticksObj.tickSize > ticksObj.max - ticksObj.min) {
-                    console.log('ERROR: tickSize > max - min.');
+                    logme('ERROR: tickSize > max - min.');
 
                     return false;
                 }
@@ -633,17 +633,17 @@ define('Graph', [], function () {
             xrange = {};
 
             if ($.isPlainObject(config.plot.xrange) === false) {
-                console.log(
+                logme(
                     'ERROR: Expected config.plot.xrange to be an object. ' +
                     'It is not.'
                 );
-                console.log('config.plot.xrange = ', config.plot.xrange);
+                logme('config.plot.xrange = ', config.plot.xrange);
 
                 return false;
             }
 
             if (config.plot.xrange.hasOwnProperty('min') === false) {
-                console.log(
+                logme(
                     'ERROR: Expected config.plot.xrange.min to be ' +
                     'present. It is not.'
                 );
@@ -675,7 +675,7 @@ define('Graph', [], function () {
                     disableAutoReturn = true;
                 }
             } else {
-                console.log(
+                logme(
                     'ERROR: Could not get a function definition for ' +
                     'xrange.min property.'
                 );
@@ -691,7 +691,7 @@ define('Graph', [], function () {
                 }
             } else {
                 if (funcString.search(/return/i) === -1) {
-                    console.log(
+                    logme(
                         'ERROR: You have specified a JavaScript ' +
                         'function without a "return" statemnt. Your ' +
                         'function will return "undefined" by default.'
@@ -705,11 +705,11 @@ define('Graph', [], function () {
             try {
                 xrange.min = Function.apply(null, allParamNames);
             } catch (err) {
-                console.log(
+                logme(
                     'ERROR: could not create a function from the string "' +
                     funcString + '" for xrange.min.'
                 );
-                console.log('Error message: "' + err.message + '"');
+                logme('Error message: "' + err.message + '"');
 
                 if (state.showDebugInfo) {
                     $('#' + gstId).html(
@@ -728,7 +728,7 @@ define('Graph', [], function () {
             allParamNames.pop();
 
             if (config.plot.xrange.hasOwnProperty('max') === false) {
-                console.log(
+                logme(
                     'ERROR: Expected config.plot.xrange.max to be ' +
                     'present. It is not.'
                 );
@@ -760,7 +760,7 @@ define('Graph', [], function () {
                     disableAutoReturn = true;
                 }
             } else {
-                console.log(
+                logme(
                     'ERROR: Could not get a function definition for ' +
                     'xrange.max property.'
                 );
@@ -776,7 +776,7 @@ define('Graph', [], function () {
                 }
             } else {
                 if (funcString.search(/return/i) === -1) {
-                    console.log(
+                    logme(
                         'ERROR: You have specified a JavaScript ' +
                         'function without a "return" statemnt. Your ' +
                         'function will return "undefined" by default.'
@@ -788,11 +788,11 @@ define('Graph', [], function () {
             try {
                 xrange.max = Function.apply(null, allParamNames);
             } catch (err) {
-                console.log(
+                logme(
                     'ERROR: could not create a function from the string "' +
                     funcString + '" for xrange.max.'
                 );
-                console.log('Error message: "' + err.message + '"');
+                logme('Error message: "' + err.message + '"');
 
                 if (state.showDebugInfo) {
                     $('#' + gstId).html(
@@ -819,11 +819,11 @@ define('Graph', [], function () {
                 (tempNum < 2) &&
                 (tempNum > 1000)
             ) {
-                console.log(
+                logme(
                     'ERROR: Number of points is outside the allowed range ' +
                     '[2, 1000]'
                 );
-                console.log('config.plot.num_points = ' + tempNum);
+                logme('config.plot.num_points = ' + tempNum);
 
                 return false;
             }
@@ -839,7 +839,7 @@ define('Graph', [], function () {
             functions = [];
 
             if (typeof config.functions === 'undefined') {
-                console.log('ERROR: config.functions is undefined.');
+                logme('ERROR: config.functions is undefined.');
 
                 return;
             }
@@ -875,7 +875,7 @@ define('Graph', [], function () {
                     }
                 }
             } else {
-                console.log('ERROR: config.functions.function is of an unsupported type.');
+                logme('ERROR: config.functions.function is of an unsupported type.');
 
                 return;
             }
@@ -909,7 +909,7 @@ define('Graph', [], function () {
                     // 'plot_label', or 'graph'. However, if the '@output'
                     // attribute is omitted, we will not have reached this.
                     else if (obj['@output'].toLowerCase() !== 'graph') {
-                        console.log(
+                        logme(
                             'ERROR: Function "output" attribute can be ' +
                             'either "element", "plot_label", "none" or "graph".'
                         );
@@ -967,7 +967,7 @@ define('Graph', [], function () {
                     }
                 } else {
                     if (funcString.search(/return/i) === -1) {
-                        console.log(
+                        logme(
                             'ERROR: You have specified a JavaScript ' +
                             'function without a "return" statemnt. Your ' +
                             'function will return "undefined" by default.'
@@ -1005,12 +1005,12 @@ define('Graph', [], function () {
                 try {
                     func = Function.apply(null, paramNames);
                 } catch (err) {
-                    console.log(
+                    logme(
                         'ERROR: The function body "' +
                         funcString +
                         '" was not converted by the Function constructor.'
                     );
-                    console.log('Error message: "' + err.message + '"');
+                    logme('Error message: "' + err.message + '"');
 
                     if (state.showDebugInfo) {
                         $('#' + gstId).html('<div style="color: red;">' + 'ERROR IN XML: Could not create a function from the string "' + funcString + '".' + '</div>');
@@ -1080,8 +1080,8 @@ define('Graph', [], function () {
                         } else if (fillArea.toLowerCase() === 'false') {
                             newFunctionObject['fillArea'] = false;
                         } else {
-                            console.log('ERROR: The attribute fill_area should be either "true" or "false".');
-                            console.log('fill_area = "' + fillArea + '".');
+                            logme('ERROR: The attribute fill_area should be either "true" or "false".');
+                            logme('fill_area = "' + fillArea + '".');
 
                             return;
                         }
@@ -1138,8 +1138,8 @@ define('Graph', [], function () {
                 try {
                     start = xrange.min.apply(window, paramValues);
                 } catch (err) {
-                    console.log('ERROR: Could not determine xrange start.');
-                    console.log('Error message: "' + err.message + '".');
+                    logme('ERROR: Could not determine xrange start.');
+                    logme('Error message: "' + err.message + '".');
 
                     if (state.showDebugInfo) {
                         $('#' + gstId).html('<div style="color: red;">' + 'ERROR IN XML: Could not determine xrange start from defined function.' + '</div>');
@@ -1151,8 +1151,8 @@ define('Graph', [], function () {
                 try {
                     end = xrange.max.apply(window, paramValues);
                 } catch (err) {
-                    console.log('ERROR: Could not determine xrange end.');
-                    console.log('Error message: "' + err.message + '".');
+                    logme('ERROR: Could not determine xrange end.');
+                    logme('Error message: "' + err.message + '".');
 
                     if (state.showDebugInfo) {
                         $('#' + gstId).html('<div style="color: red;">' + 'ERROR IN XML: Could not determine xrange end from defined function.' + '</div>');
@@ -1184,8 +1184,8 @@ define('Graph', [], function () {
                     try {
                         y = functionObj.func.apply(window, paramValues);
                     } catch (err) {
-                        console.log('ERROR: Could not generate data.');
-                        console.log('Error message: "' + err.message + '".');
+                        logme('ERROR: Could not generate data.');
+                        logme('Error message: "' + err.message + '".');
 
                         if (state.showDebugInfo) {
                             $('#' + gstId).html('<div style="color: red;">' + 'ERROR IN XML: Could not generate data from defined function.' + '</div>');
@@ -1215,8 +1215,8 @@ define('Graph', [], function () {
                     try {
                         y = functionObj.func.apply(window, paramValues);
                     } catch (err) {
-                        console.log('ERROR: Could not generate data.');
-                        console.log('Error message: "' + err.message + '".');
+                        logme('ERROR: Could not generate data.');
+                        logme('Error message: "' + err.message + '".');
 
                         if (state.showDebugInfo) {
                             $('#' + gstId).html('<div style="color: red;">' + 'ERROR IN XML: Could not generate data from function.' + '</div>');
@@ -1453,8 +1453,8 @@ define('Graph', [], function () {
                     try {
                         val = asymptote.func.apply(window, paramValues);
                     } catch (err) {
-                        console.log('ERROR: Could not generate value from asymptote function.');
-                        console.log('Error message: ', err.message);
+                        logme('ERROR: Could not generate value from asymptote function.');
+                        logme('Error message: ', err.message);
 
                         continue;
                     }

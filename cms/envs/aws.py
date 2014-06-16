@@ -9,7 +9,6 @@ This is the default template for our main set of AWS servers.
 import json
 
 from .common import *
-
 from logsettings import get_logger_config
 import os
 
@@ -91,10 +90,7 @@ with open(CONFIG_ROOT / CONFIG_PREFIX + "env.json") as env_file:
 STATIC_URL_BASE = ENV_TOKENS.get('STATIC_URL_BASE', None)
 if STATIC_URL_BASE:
     # collectstatic will fail if STATIC_URL is a unicode string
-    STATIC_URL = STATIC_URL_BASE.encode('ascii')
-    if not STATIC_URL.endswith("/"):
-        STATIC_URL += "/"
-    STATIC_URL += git.revision + "/"
+    STATIC_URL = STATIC_URL_BASE.encode('ascii') + "/" + git.revision + "/"
 
 # GITHUB_REPO_ROOT is the base directory
 # for course data
@@ -109,11 +105,6 @@ if STATIC_ROOT_BASE:
 
 EMAIL_BACKEND = ENV_TOKENS.get('EMAIL_BACKEND', EMAIL_BACKEND)
 EMAIL_FILE_PATH = ENV_TOKENS.get('EMAIL_FILE_PATH', None)
-
-EMAIL_HOST = ENV_TOKENS.get('EMAIL_HOST', EMAIL_HOST)
-EMAIL_PORT = ENV_TOKENS.get('EMAIL_PORT', EMAIL_PORT)
-EMAIL_USE_TLS = ENV_TOKENS.get('EMAIL_USE_TLS', EMAIL_USE_TLS)
-
 LMS_BASE = ENV_TOKENS.get('LMS_BASE')
 # Note that FEATURES['PREVIEW_LMS_BASE'] gets read in from the environment file.
 
@@ -122,13 +113,6 @@ SITE_NAME = ENV_TOKENS['SITE_NAME']
 LOG_DIR = ENV_TOKENS['LOG_DIR']
 
 CACHES = ENV_TOKENS['CACHES']
-# Cache used for location mapping -- called many times with the same key/value
-# in a given request.
-if 'loc_cache' not in CACHES:
-    CACHES['loc_cache'] = {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'edx_location_mem_cache',
-    }
 
 SESSION_COOKIE_DOMAIN = ENV_TOKENS.get('SESSION_COOKIE_DOMAIN')
 SESSION_ENGINE = ENV_TOKENS.get('SESSION_ENGINE', SESSION_ENGINE)
@@ -150,16 +134,9 @@ TECH_SUPPORT_EMAIL = ENV_TOKENS.get('TECH_SUPPORT_EMAIL', TECH_SUPPORT_EMAIL)
 
 COURSES_WITH_UNSAFE_CODE = ENV_TOKENS.get("COURSES_WITH_UNSAFE_CODE", [])
 
-# Theme overrides
-THEME_NAME = ENV_TOKENS.get('THEME_NAME', None)
-
 #Timezone overrides
 TIME_ZONE = ENV_TOKENS.get('TIME_ZONE', TIME_ZONE)
 
-# Translation overrides
-LANGUAGES = ENV_TOKENS.get('LANGUAGES', LANGUAGES)
-LANGUAGE_CODE = ENV_TOKENS.get('LANGUAGE_CODE', LANGUAGE_CODE)
-USE_I18N = ENV_TOKENS.get('USE_I18N', USE_I18N)
 
 ENV_FEATURES = ENV_TOKENS.get('FEATURES', ENV_TOKENS.get('MITX_FEATURES', {}))
 for feature, value in ENV_FEATURES.items():
@@ -183,9 +160,6 @@ if "TRACKING_IGNORE_URL_PATTERNS" in ENV_TOKENS:
 # Secret things: passwords, access keys, etc.
 with open(CONFIG_ROOT / CONFIG_PREFIX + "auth.json") as auth_file:
     AUTH_TOKENS = json.load(auth_file)
-
-EMAIL_HOST_USER = AUTH_TOKENS.get('EMAIL_HOST_USER', EMAIL_HOST_USER)
-EMAIL_HOST_PASSWORD = AUTH_TOKENS.get('EMAIL_HOST_PASSWORD', EMAIL_HOST_PASSWORD)
 
 # If Segment.io key specified, load it and turn on Segment.io if the feature flag is set
 # Note that this is the Studio key. There is a separate key for the LMS.
@@ -228,31 +202,3 @@ BROKER_URL = "{0}://{1}:{2}@{3}/{4}".format(CELERY_BROKER_TRANSPORT,
 
 # Event tracking
 TRACKING_BACKENDS.update(AUTH_TOKENS.get("TRACKING_BACKENDS", {}))
-
-SUBDOMAIN_BRANDING = ENV_TOKENS.get('SUBDOMAIN_BRANDING', {})
-VIRTUAL_UNIVERSITIES = ENV_TOKENS.get('VIRTUAL_UNIVERSITIES', [])
-
-##### ACCOUNT LOCKOUT DEFAULT PARAMETERS #####
-MAX_FAILED_LOGIN_ATTEMPTS_ALLOWED = ENV_TOKENS.get("MAX_FAILED_LOGIN_ATTEMPTS_ALLOWED", 5)
-MAX_FAILED_LOGIN_ATTEMPTS_LOCKOUT_PERIOD_SECS = ENV_TOKENS.get("MAX_FAILED_LOGIN_ATTEMPTS_LOCKOUT_PERIOD_SECS", 15 * 60)
-
-
-MICROSITE_CONFIGURATION = ENV_TOKENS.get('MICROSITE_CONFIGURATION', {})
-MICROSITE_ROOT_DIR = ENV_TOKENS.get('MICROSITE_ROOT_DIR')
-if len(MICROSITE_CONFIGURATION.keys()) > 0:
-    enable_microsites(
-        MICROSITE_CONFIGURATION,
-        SUBDOMAIN_BRANDING,
-        VIRTUAL_UNIVERSITIES,
-        microsites_root=path(MICROSITE_ROOT_DIR)
-    )
-
-#### PASSWORD POLICY SETTINGS #####
-PASSWORD_MIN_LENGTH = ENV_TOKENS.get("PASSWORD_MIN_LENGTH")
-PASSWORD_MAX_LENGTH = ENV_TOKENS.get("PASSWORD_MAX_LENGTH")
-PASSWORD_COMPLEXITY = ENV_TOKENS.get("PASSWORD_COMPLEXITY", {})
-PASSWORD_DICTIONARY_EDIT_DISTANCE_THRESHOLD = ENV_TOKENS.get("PASSWORD_DICTIONARY_EDIT_DISTANCE_THRESHOLD")
-PASSWORD_DICTIONARY = ENV_TOKENS.get("PASSWORD_DICTIONARY", [])
-
-### INACTIVITY SETTINGS ####
-SESSION_INACTIVITY_TIMEOUT_IN_SECONDS = AUTH_TOKENS.get("SESSION_INACTIVITY_TIMEOUT_IN_SECONDS")

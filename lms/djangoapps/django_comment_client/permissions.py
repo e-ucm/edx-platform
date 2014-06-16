@@ -15,8 +15,7 @@ def cached_has_permission(user, permission, course_id=None):
     Call has_permission if it's not cached. A change in a user's role or
     a role's permissions will only become effective after CACHE_LIFESPAN seconds.
     """
-    key = u"permission_{user_id:d}_{course_id}_{permission}".format(
-        user_id=user.id, course_id=course_id, permission=permission)
+    key = "permission_%d_%s_%s" % (user.id, str(course_id), permission)
     val = CACHE.get(key, None)
     if val not in [True, False]:
         val = has_permission(user, permission, course_id=course_id)
@@ -103,6 +102,7 @@ VIEW_PERMISSIONS = {
     'unfollow_commentable': ['unfollow_commentable'],
     'unfollow_user': ['unfollow_user'],
     'create_thread': ['create_thread'],
+    'update_moderator_status': ['manage_moderator'],
 }
 
 

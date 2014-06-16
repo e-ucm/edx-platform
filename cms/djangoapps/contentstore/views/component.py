@@ -2,10 +2,11 @@ import json
 import logging
 from collections import defaultdict
 
-from django.http import HttpResponseBadRequest, Http404
+from django.http import HttpResponseBadRequest
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
 from django.core.exceptions import PermissionDenied
+from django_future.csrf import ensure_csrf_cookie
 from django.conf import settings
 from xmodule.modulestore.exceptions import ItemNotFoundError
 from edxmako.shortcuts import render_to_response
@@ -15,27 +16,22 @@ from xmodule.util.date_utils import get_default_time_display
 from xmodule.modulestore.django import loc_mapper
 from xmodule.modulestore.locator import BlockUsageLocator
 
-from xblock.core import XBlock
-from xblock.django.request import webob_to_django_response, django_to_webob_request
-from xblock.exceptions import NoSuchHandlerError
 from xblock.fields import Scope
-from xblock.plugin import PluginMissingError
-from xblock.runtime import Mixologist
-from xmodule.x_module import prefer_xmodules
+from util.json_request import expect_json, JsonResponse
 
-from lms.lib.xblock.runtime import unquote_slashes
-
-from contentstore.utils import get_lms_link_for_item, compute_unit_state, UnitState
+from contentstore.utils import get_lms_link_for_item, compute_unit_state, UnitState, get_course_for_item
 
 from models.settings.course_grading import CourseGradingModel
 
-from .access import has_course_access
+from .access import has_access
+from xmodule.x_module import XModuleDescriptor
+from xblock.plugin import PluginMissingError
+from xblock.runtime import Mixologist
 
 __all__ = ['OPEN_ENDED_COMPONENT_TYPES',
            'ADVANCED_COMPONENT_POLICY_KEY',
            'subsection_handler',
-           'unit_handler',
-           'component_handler'
+           'unit_handler'
            ]
 
 log = logging.getLogger(__name__)
@@ -45,28 +41,19 @@ COMPONENT_TYPES = ['discussion', 'html', 'problem', 'video']
 
 OPEN_ENDED_COMPONENT_TYPES = ["combinedopenended", "peergrading"]
 NOTE_COMPONENT_TYPES = ['notes']
-
-if settings.FEATURES.get('ALLOW_ALL_ADVANCED_COMPONENTS'):
-    ADVANCED_COMPONENT_TYPES = sorted(set(name for name, class_ in XBlock.load_classes()) - set(COMPONENT_TYPES))
-else:
-
-    ADVANCED_COMPONENT_TYPES = [
-        'annotatable',
-        'textannotation',  # module for annotating text (with annotation table)
-        'videoannotation',  # module for annotating video (with annotation table)
-        'word_cloud',
-        'graphical_slider_tool',
-        'lti',
-        'minigame',
-    ] + OPEN_ENDED_COMPONENT_TYPES + NOTE_COMPONENT_TYPES
-
+ADVANCED_COMPONENT_TYPES = [
+    'annotatable',
+    'word_cloud',
+    'graphical_slider_tool',
+    'lti',
+] + OPEN_ENDED_COMPONENT_TYPES + NOTE_COMPONENT_TYPES
 ADVANCED_COMPONENT_CATEGORY = 'advanced'
 ADVANCED_COMPONENT_POLICY_KEY = 'advanced_modules'
 
 
 @require_http_methods(["GET"])
 @login_required
-def subsection_handler(request, tag=None, package_id=None, branch=None, version_guid=None, block=None):
+def subsection_handler(request, tag=None, course_id=None, branch=None, version_guid=None, block=None):
     """
     The restful handler for subsection-specific requests.
 
@@ -75,7 +62,7 @@ def subsection_handler(request, tag=None, package_id=None, branch=None, version_
         json: not currently supported
     """
     if 'text/html' in request.META.get('HTTP_ACCEPT', 'text/html'):
-        locator = BlockUsageLocator(package_id=package_id, branch=branch, version_guid=version_guid, block_id=block)
+        locator = BlockUsageLocator(course_id=course_id, branch=branch, version_guid=version_guid, usage_id=block)
         try:
             old_location, course, item, lms_link = _get_item_in_course(request, locator)
         except ItemNotFoundError:
@@ -148,14 +135,14 @@ def _load_mixed_class(category):
     """
     Load an XBlock by category name, and apply all defined mixins
     """
-    component_class = XBlock.load_class(category, select=prefer_xmodules)
+    component_class = XModuleDescriptor.load_class(category)
     mixologist = Mixologist(settings.XBLOCK_MIXINS)
     return mixologist.mix(component_class)
 
 
 @require_http_methods(["GET"])
 @login_required
-def unit_handler(request, tag=None, package_id=None, branch=None, version_guid=None, block=None):
+def unit_handler(request, tag=None, course_id=None, branch=None, version_guid=None, block=None):
     """
     The restful handler for unit-specific requests.
 
@@ -164,7 +151,7 @@ def unit_handler(request, tag=None, package_id=None, branch=None, version_guid=N
         json: not currently supported
     """
     if 'text/html' in request.META.get('HTTP_ACCEPT', 'text/html'):
-        locator = BlockUsageLocator(package_id=package_id, branch=branch, version_guid=version_guid, block_id=block)
+        locator = BlockUsageLocator(course_id=course_id, branch=branch, version_guid=version_guid, usage_id=block)
         try:
             old_location, course, item, lms_link = _get_item_in_course(request, locator)
         except ItemNotFoundError:
@@ -268,7 +255,8 @@ def unit_handler(request, tag=None, package_id=None, branch=None, version_guid=N
         preview_lms_base = settings.FEATURES.get('PREVIEW_LMS_BASE')
 
         preview_lms_link = (
-            u'//{preview_lms_base}/courses/{org}/{course}/{course_name}/courseware/{section}/{subsection}/{index}'
+            '//{preview_lms_base}/courses/{org}/{course}/'
+            '{course_name}/courseware/{section}/{subsection}/{index}'
         ).format(
             preview_lms_base=preview_lms_base,
             lms_base=settings.LMS_BASE,
@@ -313,7 +301,7 @@ def _get_item_in_course(request, locator):
 
     Verifies that the caller has permission to access this item.
     """
-    if not has_course_access(request.user, locator):
+    if not has_access(request.user, locator):
         raise PermissionDenied()
 
     old_location = loc_mapper().translate_locator_to_location(locator)
@@ -323,36 +311,3 @@ def _get_item_in_course(request, locator):
     lms_link = get_lms_link_for_item(old_location, course_id=course.location.course_id)
 
     return old_location, course, item, lms_link
-
-
-@login_required
-def component_handler(request, usage_id, handler, suffix=''):
-    """
-    Dispatch an AJAX action to an xblock
-
-    Args:
-        usage_id: The usage-id of the block to dispatch to, passed through `quote_slashes`
-        handler (str): The handler to execute
-        suffix (str): The remainder of the url to be passed to the handler
-
-    Returns:
-        :class:`django.http.HttpResponse`: The response from the handler, converted to a
-            django response
-    """
-
-    location = unquote_slashes(usage_id)
-
-    descriptor = modulestore().get_item(location)
-    # Let the module handle the AJAX
-    req = django_to_webob_request(request)
-
-    try:
-        resp = descriptor.handle(handler, req, suffix)
-
-    except NoSuchHandlerError:
-        log.info("XBlock %s attempted to access missing handler %r", descriptor, handler, exc_info=True)
-        raise Http404
-
-    modulestore().save_xmodule(descriptor)
-
-    return webob_to_django_response(resp)

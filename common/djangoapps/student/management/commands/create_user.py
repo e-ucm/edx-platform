@@ -4,10 +4,8 @@ from student.models import CourseEnrollment, Registration
 from student.views import _do_create_account
 from django.contrib.auth.models import User
 
-from track.management.tracked_command import TrackedCommand
 
-
-class Command(TrackedCommand):
+class Command(BaseCommand):
     help = """
     This command creates and registers a user in a given course
     as "audit", "verified" or "honor".

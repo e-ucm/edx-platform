@@ -388,17 +388,17 @@ class CrowdsourceHinterDescriptor(CrowdsourceHinterFields, RawDescriptor):
         children = []
         for child in xml_object:
             try:
-                child_block = system.process_xml(etree.tostring(child, encoding='unicode'))
-                children.append(child_block.scope_ids.usage_id)
+                children.append(system.process_xml(etree.tostring(child, encoding='unicode')).location.url())
             except Exception as e:
                 log.exception("Unable to load child when parsing CrowdsourceHinter. Continuing...")
                 if system.error_tracker is not None:
-                    system.error_tracker(u"ERROR: {0}".format(e))
+                    system.error_tracker("ERROR: " + str(e))
                 continue
         return {}, children
 
     def definition_to_xml(self, resource_fs):
         xml_object = etree.Element('crowdsource_hinter')
         for child in self.get_children():
-            self.runtime.add_block_as_child_node(child, xml_object)
+            xml_object.append(
+                etree.fromstring(child.export_to_xml(resource_fs)))
         return xml_object

@@ -9,14 +9,13 @@ from django.test.utils import override_settings
 from mock import Mock, patch
 
 from notification_prefs import NOTIFICATION_PREF_KEY
-from notification_prefs.views import ajax_enable, ajax_disable, ajax_status, set_subscription, UsernameCipher
+from notification_prefs.views import ajax_enable, ajax_disable, ajax_status, unsubscribe
 from student.tests.factories import UserFactory
 from user_api.models import UserPreference
-from util.testing import UrlResetMixin
 
 
 @override_settings(SECRET_KEY="test secret key")
-class NotificationPrefViewTest(UrlResetMixin, TestCase):
+class NotificationPrefViewTest(TestCase):
     INITIALIZATION_VECTOR = "\x00" * 16
 
     @classmethod
@@ -24,9 +23,7 @@ class NotificationPrefViewTest(UrlResetMixin, TestCase):
         # Make sure global state is set up appropriately
         Client().get("/")
 
-    @patch.dict("django.conf.settings.FEATURES", {"ENABLE_DISCUSSION_SERVICE": True})
     def setUp(self):
-        super(NotificationPrefViewTest, self).setUp()
         self.user = UserFactory.create(username="testuser")
         # Tokens are intentionally hard-coded instead of computed to help us
         # avoid breaking existing links.
@@ -51,12 +48,10 @@ class NotificationPrefViewTest(UrlResetMixin, TestCase):
 
     def assertPrefValid(self, user):
         """Ensure that the correct preference for the user is persisted"""
-        pref = UserPreference.objects.get(user=user, key=NOTIFICATION_PREF_KEY)
-        self.assertTrue(pref)  # check exists and only 1 (.get)
-        # now coerce username to utf-8 encoded str, since we test with non-ascii unicdoe above and
-        # the unittest framework has hard time coercing to unicode.
-        # decrypt also can't take a unicode input, so coerce its input to str
-        self.assertEqual(str(user.username.encode('utf-8')), UsernameCipher().decrypt(str(pref.value)))
+        self.assertEqual(
+            UserPreference.objects.get(user=user, key=NOTIFICATION_PREF_KEY).value,
+            self.tokens[user]
+        )
 
     def assertNotPrefExists(self, user):
         """Ensure that the user does not have a persisted preference"""
@@ -179,13 +174,13 @@ class NotificationPrefViewTest(UrlResetMixin, TestCase):
 
     def test_unsubscribe_post(self):
         request = self.request_factory.post("dummy")
-        response = set_subscription(request, "dummy", subscribe=False)
+        response = unsubscribe(request, "dummy")
         self.assertEqual(response.status_code, 405)
 
     def test_unsubscribe_invalid_token(self):
         def test_invalid_token(token, message):
             request = self.request_factory.get("dummy")
-            self.assertRaisesRegexp(Http404, "^{}$".format(message), set_subscription, request, token, False)
+            self.assertRaisesRegexp(Http404, "^{}$".format(message), unsubscribe, request, token)
 
         # Invalid base64 encoding
         test_invalid_token("ZOMG INVALID BASE64 CHARS!!!", "base64url")
@@ -220,7 +215,7 @@ class NotificationPrefViewTest(UrlResetMixin, TestCase):
         def test_user(user):
             request = self.request_factory.get("dummy")
             request.user = AnonymousUser()
-            response = set_subscription(request, self.tokens[user], subscribe=False)
+            response = unsubscribe(request, self.tokens[user])
             self.assertEqual(response.status_code, 200)
             self.assertNotPrefExists(user)
 
@@ -231,20 +226,7 @@ class NotificationPrefViewTest(UrlResetMixin, TestCase):
         self.create_prefs()
         request = self.request_factory.get("dummy")
         request.user = AnonymousUser()
-        set_subscription(request, self.tokens[self.user], False)
-        response = set_subscription(request, self.tokens[self.user], subscribe=False)
+        unsubscribe(request, self.tokens[self.user])
+        response = unsubscribe(request, self.tokens[self.user])
         self.assertEqual(response.status_code, 200)
         self.assertNotPrefExists(self.user)
-
-    def test_resubscribe_success(self):
-        def test_user(user):
-            # start without a pref key
-            self.assertFalse(UserPreference.objects.filter(user=user, key=NOTIFICATION_PREF_KEY))
-            request = self.request_factory.get("dummy")
-            request.user = AnonymousUser()
-            response = set_subscription(request, self.tokens[user], subscribe=True)
-            self.assertEqual(response.status_code, 200)
-            self.assertPrefValid(user)
-
-        for user in self.tokens.keys():
-            test_user(user)

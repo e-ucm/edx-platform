@@ -1,5 +1,5 @@
-define(["js/views/baseview", "underscore", "underscore.string", "jquery"], function(BaseView, _, str, $) {
-    var SystemFeedback = BaseView.extend({
+define(["backbone", "underscore", "underscore.string", "jquery"], function(Backbone, _, str, $) {
+    var SystemFeedback = Backbone.View.extend({
         options: {
             title: "",
             message: "",

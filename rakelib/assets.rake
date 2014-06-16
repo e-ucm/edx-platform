@@ -1,7 +1,7 @@
 # Theming constants
-USE_CUSTOM_THEME = ENV_TOKENS.has_key?('FEATURES') && ENV_TOKENS['FEATURES']['USE_CUSTOM_THEME']
+THEME_NAME = ENV_TOKENS['THEME_NAME']
+USE_CUSTOM_THEME = !(THEME_NAME.nil? || THEME_NAME.empty?)
 if USE_CUSTOM_THEME
-    THEME_NAME = ENV_TOKENS['THEME_NAME']
     THEME_ROOT = File.join(ENV_ROOT, "themes", THEME_NAME)
     THEME_SASS = File.join(THEME_ROOT, "static", "sass")
 end
@@ -46,7 +46,6 @@ def sass_cmd(watch=false, debug=false)
     end
 
     "sass #{debug ? '' : '--style compressed'} " +
-          "--cache-location /tmp/sass-cache " +
           "--load-path #{sass_load_paths.join(' ')} " +
           "#{watch ? '--watch' : '--update'} -E utf-8 #{sass_watch_paths.join(' ')}"
 end

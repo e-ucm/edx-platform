@@ -12,7 +12,7 @@ samples.
 import logging
 
 from collections import defaultdict
-from xblock.core import XBlock
+from .x_module import XModuleDescriptor
 
 log = logging.getLogger(__name__)
 
@@ -23,9 +23,7 @@ def all_templates():
     """
     # TODO use memcache to memoize w/ expiration
     templates = defaultdict(list)
-    for category, descriptor in XBlock.load_classes():
-        if not hasattr(descriptor, 'templates'):
-            continue
+    for category, descriptor in XModuleDescriptor.load_classes():
         templates[category] = descriptor.templates()
 
     return templates

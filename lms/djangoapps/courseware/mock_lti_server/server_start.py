@@ -1,7 +1,5 @@
 """
 Mock LTI server for manual testing.
-
-Used for manual testing and testing on sandbox.
 """
 
 import threading
@@ -19,10 +17,6 @@ server.oauth_settings = {
     'lti_endpoint': 'correct_lti_endpoint'
 }
 server.server_host = server_host
-server.server_port = server_port
-
-# For testing on localhost make callback url using referer host.
-server.use_real_callback_url = False
 
 try:
     server.serve_forever()

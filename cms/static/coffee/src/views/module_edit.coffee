@@ -1,6 +1,6 @@
 define ["backbone", "jquery", "underscore", "gettext", "xblock/runtime.v1",
         "js/views/feedback_notification", "js/views/metadata", "js/collections/metadata"
-        "js/utils/modal", "jquery.inputnumber", "xmodule", "coffee/src/main", "xblock/cms.runtime.v1"],
+        "js/utils/modal", "jquery.inputnumber", "xmodule"],
 (Backbone, $, _, gettext, XBlock, NotificationView, MetadataView, MetadataCollection, ModalUtils) ->
   class ModuleEdit extends Backbone.View
     tagName: 'li'
@@ -62,7 +62,7 @@ define ["backbone", "jquery", "underscore", "gettext", "xblock/runtime.v1",
     changedMetadata: ->
       return _.extend(@metadataEditor.getModifiedMetadataValues(), @customMetadata())
 
-    createItem: (parent, payload, callback=->) ->
+    createItem: (parent, payload) ->
       payload.parent_locator = parent
       $.postJSON(
           @model.urlRoot
@@ -71,41 +71,13 @@ define ["backbone", "jquery", "underscore", "gettext", "xblock/runtime.v1",
               @model.set(id: data.locator)
               @$el.data('locator', data.locator)
               @render()
-      ).success(callback)
+      )
 
     render: ->
       if @model.id
-        $.ajax(
-          url: @model.url()
-          type: 'GET'
-          headers:
-            Accept: 'application/x-fragment+json'
-          success: (data) =>
-            @$el.html(data.html)
-
-            for value in data.resources
-              do (value) =>
-                hash = value[0]
-                if not window.loadedXBlockResources?
-                  window.loadedXBlockResources = []
-
-                if hash not in window.loadedXBlockResources
-                  resource = value[1]
-                  switch resource.mimetype
-                    when "text/css"
-                      switch resource.kind
-                        when "text" then $('head').append("<style type='text/css'>#{resource.data}</style>")
-                        when "url" then $('head').append("<link rel='stylesheet' href='#{resource.data}' type='text/css'>")
-                    when "application/javascript"
-                      switch resource.kind
-                        when "text" then $('head').append("<script>#{resource.data}</script>")
-                        when "url" then $.getScript(resource.data)
-                    when "text/html"
-                      switch resource.placement
-                        when "head" then $('head').append(resource.data)
-                  window.loadedXBlockResources.push(hash)
-            @loadDisplay()
-            @delegateEvents()
+        @$el.load(@model.url(), =>
+          @loadDisplay()
+          @delegateEvents()
         )
 
     clickSaveButton: (event) =>

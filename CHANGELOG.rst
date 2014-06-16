@@ -5,123 +5,9 @@ These are notable changes in edx-platform.  This is a rolling list of changes,
 in roughly chronological order, most recent first.  Add your entries at or near
 the top.  Include a label indicating the component affected.
 
-LMS: In left accordion and progress page, due dates are now displayed in time
-zone specified by settings.TIME_ZONE, instead of UTC always
-
-LMS:  If the course start date is kept at the default studio value (Jan 1, 2030)
-and advertised_start is not set, the start date is not displayed in the
-/courses tile view, the course about page, or the dashboard
-
-Blades: Add role parameter to LTI. BLD-583.
-
-Blades: Bugfix "In Firefox YouTube video with start time plays from 00:00:00".
-BLD-708.
-
-Blades: Fix bug when image response in Firefox does not retain input. BLD-711.
-
-Blades: Give numerical response tolerance as a range. BLD-25.
-
-Common: Add a utility app for building databased-backed configuration
-  for specific application features. Includes admin site customization
-  for easier administration and tracking.
-
-Common: Add the ability to dark-launch site translations. These languages
-  will be unavailable to users except through the use of a specific query
-  parameter.
-
-Blades: Allow user with BetaTester role correctly use LTI. BLD-641.
-
-Blades: Video player persist speed preferences between videos. BLD-237.
-
-Blades: Change the download video field to a dropdown that will allow students
-to download the first source listed in the alternate sources. BLD-364.
-
-Blades: Change the track field to a dropdown that will allow students
-to download the transcript of the video without timecodes. BLD-368.
-
-Blades: Video player start-end time range is now shown even before Play is
-clicked. Video player VCR time shows correct non-zero total time for YouTube
-videos even before Play is clicked. BLD-529.
-
-Studio: Add ability to duplicate components on the unit page.
-
-Blades: Adds CookieStorage utility for video player that provides convenient
-  way to work with cookies.
-
-Blades: Fix comparison of float numbers. BLD-434.
-
-Blades: Allow regexp strings as the correct answer to a string response question. BLD-475.
-
-Common: Add feature flags to allow developer use of pure XBlocks
-  - ALLOW_ALL_ADVANCED_COMPONENTS disables the hard-coded list of advanced
-    components in Studio, and allows any xblock to be added as an
-    advanced component in Studio settings
-  - XBLOCK_SELECT_FUNCTION allows the insertion of a custom function
-    to limit loading of XBlocks with (including allowing pure xblocks)
-
-Studio: Add sorting by column to the Files & Uploads page.
-See mongo_indexes.md for new indices that should be added.
-
-Common: Previously, theming was activated by providing a value for the THEME_NAME
-  setting. Now, theming is activated by setting the "USE_CUSTOM_THEME" feature
-  flag to True -- a THEME_NAME setting is still required to determine *which*
-  theme to use.
-
-Studio: Newly-created courses default to being published on Jan 1, 2030
-
-Studio: Added pagination to the Files & Uploads page.
-
-Common: Centralized authorization mechanisms and removed the app-specific ones.
-
-Blades: Video player improvements:
-  - Disable edX controls on iPhone/iPod (native controls are used).
-  - Disable unsupported controls (volume, playback rate) on iPad/Android.
-  - Controls becomes visible after click on video or play placeholder to avoid
-    issues with YouTube API on iPad/Android.
-  - Captions becomes visible just after full initialization of video player.
-  - Fix blinking of captions after initialization of video player. BLD-206.
-
-LMS: Fix answer distribution download for small courses. LMS-922, LMS-811
-
-Blades: Add template for the zooming image in studio. BLD-206.
-
-Blades: Update behavior of start/end time fields. BLD-506.
-
-Blades: Make LTI module not send grade_back_url if has_score=False. BLD-561.
-
-Blades: Show answer for imageresponse. BLD-21.
-
-Blades: LTI additional Python tests. LTI must use HTTPS for
-lis_outcome_service_url. BLD-564.
-
-Studio: Enable Terms of Service and Privacy Policy links to be served by
-  an alternate site. STUD-151.
-
-Blades: Fix bug when Image mapping problems are not working for students in IE. BLD-413.
-
-Blades: Add template that displays the most up-to-date features of
-drag-and-drop. BLD-479.
-
-Blades: LTI fix bug e-reader error when popping out window. BLD-465.
-
-Common: Switch from mitx.db to edx.db for sqlite databases. This will effectively
-  reset state for local instances of the code, unless you manually rename your
-  mitx.db file to edx.db.
-
-Common: significant performance improvement for authorization checks and location translations.
-  Ensure all auth checks, check all possible permutations of the auth key (Instructor dashboard
-  now shows when it should for all courses in lms).
-  Made queries for Studio dashboard 2 orders of magnitude faster (and fewer).
-
-Blades: Video Transcripts: Fix clear and download buttons. BLD-438.
-
 Common: Switch over from MITX_FEATURES to just FEATURES. To override items in
   the FEATURES dict, the environment variable you must set to do so is also
   now called FEATURES instead of MITX_FEATURES.
-
-LMS: Change the forum role granted to global staff on enrollment in a
-course. Previously, staff were given the Moderator role; now, they are
-given the Student role.
 
 Blades: Fix Numerical input to support mathematical operations. BLD-525.
 
@@ -199,8 +85,6 @@ HTML5 videos. If end time is set, the video can still play until the end, after
 it pauses on the end time.
 
 Blades: Disallow users to enter video url's in http.
-
-Studio/LMS: Ability to cap the max number of active enrollments in a course
 
 LMS: Improve the acessibility of the forum follow post buttons.
 
@@ -341,8 +225,6 @@ assessors to edit the original submitter's work.
 
 LMS: Fixed a bug that caused links from forum user profile pages to
 threads to lead to 404s if the course id contained a '-' character.
-
-Studio/LMS: Add password policy enforcement to new account creation
 
 Studio/LMS: Added ability to set due date formatting through Studio's Advanced
 Settings.  The key is due_date_display_format, and the value should be a format

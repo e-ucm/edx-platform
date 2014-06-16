@@ -2,7 +2,7 @@
 // define() functions from Require JS available inside the anonymous function.
 (function (requirejs, require, define) {
 
-define('Inputs', [], function () {
+define('Inputs', ['logme'], function (logme) {
     return Inputs;
 
     function Inputs(gstId, gstClass, state) {
@@ -32,7 +32,7 @@ define('Inputs', [], function () {
 
             // Check that the retrieval went OK.
             if (paramObj === undefined) {
-                console.log('ERROR: Could not get a paramObj for parameter "' + paramName + '".');
+                logme('ERROR: Could not get a paramObj for parameter "' + paramName + '".');
 
                 return;
             }

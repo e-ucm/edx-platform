@@ -8,8 +8,8 @@ define(
     // Even though it is not explicitly in this module, we have to specify
     // 'GeneralMethods' as a dependency. It expands some of the core JS objects
     // with additional useful methods that are used in other modules.
-    ['State', 'GeneralMethods', 'Sliders', 'Inputs', 'Graph', 'ElOutput', 'GLabelElOutput'],
-    function (State, GeneralMethods, Sliders, Inputs, Graph, ElOutput, GLabelElOutput) {
+    ['State', 'GeneralMethods', 'Sliders', 'Inputs', 'Graph', 'ElOutput', 'GLabelElOutput', 'logme'],
+    function (State, GeneralMethods, Sliders, Inputs, Graph, ElOutput, GLabelElOutput, logme) {
 
     return GstMain;
 
@@ -19,7 +19,7 @@ define(
         if ($('#' + gstId).attr('data-processed') !== 'processed') {
             $('#' + gstId).attr('data-processed', 'processed');
         } else {
-            // console.log('MESSAGE: Already processed GST with ID ' + gstId + '. Skipping.');
+            // logme('MESSAGE: Already processed GST with ID ' + gstId + '. Skipping.');
 
             return;
         }
@@ -28,10 +28,10 @@ define(
         try {
             config = JSON.parse($('#' + gstId + '_json').html()).root;
         } catch (err) {
-            console.log('ERROR: could not parse config JSON.');
-            console.log('$("#" + gstId + "_json").html() = ', $('#' + gstId + '_json').html());
-            console.log('JSON.parse(...) = ', JSON.parse($('#' + gstId + '_json').html()));
-            console.log('config = ', config);
+            logme('ERROR: could not parse config JSON.');
+            logme('$("#" + gstId + "_json").html() = ', $('#' + gstId + '_json').html());
+            logme('JSON.parse(...) = ', JSON.parse($('#' + gstId + '_json').html()));
+            logme('config = ', config);
 
             return;
         }
@@ -40,8 +40,8 @@ define(
         // name that is based on the class name of the GST. For example, inputs
         // are assigned a class name '{GST class name}_input'.
         if (typeof config['@class'] !== 'string') {
-            console.log('ERROR: Could not get the class name of GST.');
-            console.log('config["@class"] = ', config['@class']);
+            logme('ERROR: Could not get the class name of GST.');
+            logme('config["@class"] = ', config['@class']);
 
             return;
         }
@@ -56,7 +56,7 @@ define(
         // It is possible that something goes wrong while extracting parameters
         // from the JSON config object. In this case, we will not continue.
         if (state === undefined) {
-            console.log('ERROR: The state object was not initialized properly.');
+            logme('ERROR: The state object was not initialized properly.');
 
             return;
         }

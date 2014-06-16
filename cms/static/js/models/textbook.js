@@ -1,5 +1,4 @@
-define(["backbone", "underscore", "js/models/chapter", "js/collections/chapter",
-        "backbone.associations", "coffee/src/main"],
+define(["backbone", "underscore", "js/models/chapter", "js/collections/chapter", "backbone.associations"],
     function(Backbone, _, ChapterModel, ChapterCollection) {
 
     var Textbook = Backbone.AssociatedModel.extend({
@@ -33,7 +32,13 @@ define(["backbone", "underscore", "js/models/chapter", "js/collections/chapter",
         isEmpty: function() {
             return !this.get('name') && this.get('chapters').isEmpty();
         },
-        urlRoot: function() { return CMS.URL.TEXTBOOKS; },
+        url: function() {
+            if(this.isNew()) {
+                return CMS.URL.TEXTBOOKS + "/new";
+            } else {
+                return CMS.URL.TEXTBOOKS + "/" + this.id;
+            }
+        },
         parse: function(response) {
             var ret = $.extend(true, {}, response);
             if("tab_title" in ret && !("name" in ret)) {

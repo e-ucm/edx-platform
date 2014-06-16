@@ -1,6 +1,6 @@
-define(["js/views/baseview", "underscore", "jquery", "jquery.form"],
-function(BaseView, _, $) {
-var UploadDialog = BaseView.extend({
+define(["backbone", "underscore", "jquery", "jquery.form"],
+function(Backbone, _, $) {
+var UploadDialog = Backbone.View.extend({
     options: {
         shown: true,
         successMessageTimeout: 2000 // 2 seconds

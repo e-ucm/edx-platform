@@ -4,4 +4,3 @@
 from terrain.browser import *
 from terrain.steps import *
 from terrain.factories import *
-from terrain.start_stubs import *

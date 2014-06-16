@@ -3,16 +3,14 @@ import logging
 
 from lxml import etree
 
+from xmodule.mako_module import MakoModuleDescriptor
+from xmodule.xml_module import XmlDescriptor
+from xmodule.x_module import XModule
+from xmodule.progress import Progress
+from xmodule.exceptions import NotFoundError
 from xblock.fields import Integer, Scope
 from xblock.fragment import Fragment
 from pkg_resources import resource_string
-
-from .exceptions import NotFoundError
-from .fields import Date
-from .mako_module import MakoModuleDescriptor
-from .progress import Progress
-from .x_module import XModule
-from .xml_module import XmlDescriptor
 
 log = logging.getLogger(__name__)
 
@@ -27,15 +25,6 @@ class SequenceFields(object):
     # NOTE: Position is 1-indexed.  This is silly, but there are now student
     # positions saved on prod, so it's not easy to fix.
     position = Integer(help="Last tab viewed in this sequence", scope=Scope.user_state)
-    due = Date(help="Date that this problem is due by", scope=Scope.settings)
-    extended_due = Date(
-        help="Date that this problem is due by for a particular student. This "
-             "can be set by an instructor, and will override the global due "
-             "date if it is set to a date that is later than the global due "
-             "date.",
-        default=None,
-        scope=Scope.user_state,
-    )
 
 
 class SequenceModule(SequenceFields, XModule):
@@ -138,17 +127,17 @@ class SequenceDescriptor(SequenceFields, MakoModuleDescriptor, XmlDescriptor):
         children = []
         for child in xml_object:
             try:
-                child_block = system.process_xml(etree.tostring(child, encoding='unicode'))
-                children.append(child_block.scope_ids.usage_id)
+                children.append(system.process_xml(etree.tostring(child, encoding='unicode')).location.url())
             except Exception as e:
                 log.exception("Unable to load child when parsing Sequence. Continuing...")
                 if system.error_tracker is not None:
-                    system.error_tracker(u"ERROR: {0}".format(e))
+                    system.error_tracker("ERROR: " + unicode(e))
                 continue
         return {}, children
 
     def definition_to_xml(self, resource_fs):
         xml_object = etree.Element('sequential')
         for child in self.get_children():
-            self.runtime.add_block_as_child_node(child, xml_object)
+            xml_object.append(
+                etree.fromstring(child.export_to_xml(resource_fs)))
         return xml_object

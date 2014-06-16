@@ -1,5 +1,5 @@
 (function (requirejs, require, define) {
-define([], function () {
+define(['js/capa/drag_and_drop/logme'], function (logme) {
     return configParser;
 
     function configParser(state, config) {
@@ -32,7 +32,7 @@ define([], function () {
 
     function getDraggables(state, config) {
         if (config.hasOwnProperty('draggables') === false) {
-            console.log('ERROR: "config" does not have a property "draggables".');
+            logme('ERROR: "config" does not have a property "draggables".');
             state.config.foundErrors = true;
         } else if ($.isArray(config.draggables) === true) {
             config.draggables.every(function (draggable) {
@@ -47,19 +47,19 @@ define([], function () {
                 return true;
             });
         } else {
-            console.log('ERROR: The type of config.draggables is no supported.');
+            logme('ERROR: The type of config.draggables is no supported.');
             state.config.foundErrors = true;
         }
     }
 
     function getBaseImage(state, config) {
         if (config.hasOwnProperty('base_image') === false) {
-            console.log('ERROR: "config" does not have a property "base_image".');
+            logme('ERROR: "config" does not have a property "base_image".');
             state.config.foundErrors = true;
         } else if (typeof config.base_image === 'string') {
             state.config.baseImage = config.base_image;
         } else {
-            console.log('ERROR: Property config.base_image is not of type "string".');
+            logme('ERROR: Property config.base_image is not of type "string".');
             state.config.foundErrors = true;
         }
     }
@@ -83,14 +83,14 @@ define([], function () {
                 return true;
             });
         } else {
-            console.log('ERROR: Property config.targets is not of a supported type.');
+            logme('ERROR: Property config.targets is not of a supported type.');
             state.config.foundErrors = true;
         }
     }
 
     function getOnePerTarget(state, config) {
         if (config.hasOwnProperty('one_per_target') === false) {
-            console.log('ERROR: "config" does not have a property "one_per_target".');
+            logme('ERROR: "config" does not have a property "one_per_target".');
             state.config.foundErrors = true;
         } else if (typeof config.one_per_target === 'string') {
             if (config.one_per_target.toLowerCase() === 'true') {
@@ -98,11 +98,11 @@ define([], function () {
             } else if (config.one_per_target.toLowerCase() === 'false') {
                 state.config.onePerTarget = false;
             } else {
-                console.log('ERROR: Property config.one_per_target can either be "true", or "false".');
+                logme('ERROR: Property config.one_per_target can either be "true", or "false".');
                 state.config.foundErrors = true;
             }
         } else {
-            console.log('ERROR: Property config.one_per_target is not of a supported type.');
+            logme('ERROR: Property config.one_per_target is not of a supported type.');
             state.config.foundErrors = true;
         }
     }
@@ -118,11 +118,11 @@ define([], function () {
                 } else if (config.target_outline.toLowerCase() === 'false') {
                     state.config.targetOutline = false;
                 } else {
-                    console.log('ERROR: Property config.target_outline can either be "true", or "false".');
+                    logme('ERROR: Property config.target_outline can either be "true", or "false".');
                     state.config.foundErrors = true;
                 }
             } else {
-                console.log('ERROR: Property config.target_outline is not of a supported type.');
+                logme('ERROR: Property config.target_outline is not of a supported type.');
                 state.config.foundErrors = true;
             }
         }
@@ -136,7 +136,7 @@ define([], function () {
             if (typeof config.label_bg_color === 'string') {
                 state.config.labelBgColor = config.label_bg_color;
             } else {
-                console.log('ERROR: Property config.label_bg_color is not of a supported type.');
+                logme('ERROR: Property config.label_bg_color is not of a supported type.');
             }
         }
     }
@@ -206,11 +206,11 @@ define([], function () {
 
     function attrIsString(obj, attr) {
         if (obj.hasOwnProperty(attr) === false) {
-            console.log('ERROR: Attribute "obj.' + attr + '" is not present.');
+            logme('ERROR: Attribute "obj.' + attr + '" is not present.');
 
             return false;
         } else if (typeof obj[attr] !== 'string') {
-            console.log('ERROR: Attribute "obj.' + attr + '" is not a string.');
+            logme('ERROR: Attribute "obj.' + attr + '" is not a string.');
 
             return false;
         }
@@ -222,7 +222,7 @@ define([], function () {
         var tempInt;
 
         if (obj.hasOwnProperty(attr) === false) {
-            console.log('ERROR: Attribute "obj.' + attr + '" is not present.');
+            logme('ERROR: Attribute "obj.' + attr + '" is not present.');
 
             return false;
         }
@@ -230,7 +230,7 @@ define([], function () {
         tempInt = parseInt(obj[attr], 10);
 
         if (isFinite(tempInt) === false) {
-            console.log('ERROR: Attribute "obj.' + attr + '" is not an integer.');
+            logme('ERROR: Attribute "obj.' + attr + '" is not an integer.');
 
             return false;
         }
@@ -243,7 +243,7 @@ define([], function () {
     function attrIsBoolean(obj, attr, defaultVal) {
         if (obj.hasOwnProperty(attr) === false) {
             if (defaultVal === undefined) {
-                console.log('ERROR: Attribute "obj.' + attr + '" is not present.');
+                logme('ERROR: Attribute "obj.' + attr + '" is not present.');
 
                 return false;
             } else {
@@ -260,12 +260,12 @@ define([], function () {
         } else if ((obj[attr] === 'true') || (obj[attr] === true)) {
             obj[attr] = true;
         } else {
-            console.log('ERROR: Attribute "obj.' + attr + '" is not a boolean.');
+            logme('ERROR: Attribute "obj.' + attr + '" is not a boolean.');
 
             return false;
         }
 
         return true;
     }
-}); // End-of: define([], function () {
+}); // End-of: define(['logme'], function (logme) {
 }(RequireJS.requirejs, RequireJS.require, RequireJS.define)); // End-of: (function (requirejs, require, define) {

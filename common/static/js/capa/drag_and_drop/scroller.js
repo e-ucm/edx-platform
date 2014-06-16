@@ -1,5 +1,5 @@
 (function (requirejs, require, define) {
-define([], function () {
+define(['js/capa/drag_and_drop/logme'], function (logme) {
     return Scroller;
 
     function Scroller(state) {
@@ -201,5 +201,5 @@ define([], function () {
             }
         }
     } // End-of: function Scroller(state)
-}); // End-of: define([], function () {
+}); // End-of: define(['logme'], function (logme) {
 }(RequireJS.requirejs, RequireJS.require, RequireJS.define)); // End-of: (function (requirejs, require, define) {

@@ -2,13 +2,10 @@ if Backbone?
   class @DiscussionThreadProfileView extends DiscussionContentView
     expanded = false
     events:
-      "click .vote-btn":
-        (event) -> @toggleVote(event)
-      "keydown .vote-btn":
-        (event) -> DiscussionUtil.activateOnSpace(event, @toggleVote)
+      "click .discussion-vote": "toggleVote"
       "click .action-follow": "toggleFollowing"
-      "keydown .action-follow":
-        (event) -> DiscussionUtil.activateOnSpace(event, @toggleFollowing)
+      "keypress .action-follow":
+        (event) -> DiscussionUtil.activateOnEnter(event, toggleFollowing)
       "click .expand-post": "expandPost"
       "click .collapse-post": "collapsePost"
 
@@ -30,7 +27,7 @@ if Backbone?
       @$el.html(Mustache.render(@template, params))
       @initLocal()
       @delegateEvents()
-      @renderVote()
+      @renderVoted()
       @renderAttrs()
       @$("span.timeago").timeago()
       @convertMath()
@@ -38,8 +35,15 @@ if Backbone?
         @renderResponses()
       @
 
+    renderVoted: =>
+      if window.user.voted(@model)
+        @$("[data-role=discussion-vote]").addClass("is-cast")
+      else
+        @$("[data-role=discussion-vote]").removeClass("is-cast")
+
     updateModelDetails: =>
-      @renderVote()
+      @renderVoted()
+      @$("[data-role=discussion-vote] .votes-count-number").html(@model.get("votes")["up_count"])
 
     convertMath: ->
       element = @$(".post-body")
@@ -66,6 +70,35 @@ if Backbone?
 
     addComment: =>
       @model.comment()
+
+    toggleVote: (event) ->
+      event.preventDefault()
+      if window.user.voted(@model)
+        @unvote()
+      else
+        @vote()
+
+    vote: ->
+      window.user.vote(@model)
+      url = @model.urlFor("upvote")
+      DiscussionUtil.safeAjax
+        $elem: @$(".discussion-vote")
+        url: url
+        type: "POST"
+        success: (response, textStatus) =>
+          if textStatus == 'success'
+            @model.set(response)
+
+    unvote: ->
+      window.user.unvote(@model)
+      url = @model.urlFor("unvote")
+      DiscussionUtil.safeAjax
+        $elem: @$(".discussion-vote")
+        url: url
+        type: "POST"
+        success: (response, textStatus) =>
+          if textStatus == 'success'
+            @model.set(response)
 
     edit: ->
 

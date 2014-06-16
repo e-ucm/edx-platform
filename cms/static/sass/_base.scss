@@ -689,8 +689,7 @@ hr.divide {
 }
 
 .edit-button.standard,
-.delete-button.standard,
-.duplicate-button.standard {
+.delete-button.standard {
   @extend %t-action4;
   @include white-button;
   float: left;
@@ -699,8 +698,7 @@ hr.divide {
   font-weight: 400;
 
   .edit-icon,
-  .delete-icon,
-  .duplicate-icon{
+  .delete-icon {
     margin-right: 4px;
   }
 }

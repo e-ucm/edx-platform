@@ -14,7 +14,9 @@ logger = getLogger(__name__)
 def setup_mock_lti_server():
 
     server_host = '127.0.0.1'
-    server_port = settings.LTI_PORT
+
+    # Add +1 to XQUEUE random port number
+    server_port = settings.XQUEUE_PORT + 1
 
     address = (server_host, server_port)
 
@@ -35,9 +37,6 @@ def setup_mock_lti_server():
         'lti_base':  'http://{}:{}/'.format(server_host, server_port),
         'lti_endpoint': 'correct_lti_endpoint'
     }
-
-    # For testing on localhost make callback url using referer host.
-    server.real_callback_url_on = False
 
     # Store the server instance in lettuce's world
     # so that other steps can access it

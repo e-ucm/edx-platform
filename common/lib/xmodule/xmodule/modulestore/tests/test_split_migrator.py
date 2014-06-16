@@ -20,7 +20,6 @@ from xmodule.modulestore.split_mongo.split import SplitMongoModuleStore
 from xmodule.modulestore.mongo.base import MongoModuleStore
 from xmodule.modulestore.split_migrator import SplitMigrator
 from xmodule.modulestore.mongo import draft
-from xmodule.modulestore.tests import test_location_mapper
 
 
 class TestMigration(unittest.TestCase):
@@ -32,7 +31,7 @@ class TestMigration(unittest.TestCase):
     db_config = {
         'host': 'localhost',
         'db': 'test_xmodule',
-        'collection': 'modulestore{0}'.format(uuid.uuid4().hex[:5]),
+        'collection': 'modulestore{0}'.format(uuid.uuid4().hex),
     }
 
     modulestore_options = {
@@ -44,8 +43,7 @@ class TestMigration(unittest.TestCase):
 
     def setUp(self):
         super(TestMigration, self).setUp()
-        # pylint: disable=W0142
-        self.loc_mapper = LocMapperStore(test_location_mapper.TrivialCache(), **self.db_config)
+        self.loc_mapper = LocMapperStore(**self.db_config)
         self.old_mongo = MongoModuleStore(self.db_config, **self.modulestore_options)
         self.draft_mongo = DraftModuleStore(self.db_config, **self.modulestore_options)
         self.split_mongo = SplitMongoModuleStore(
@@ -271,8 +269,7 @@ class TestMigration(unittest.TestCase):
                 self.compare_dags(presplit, pre_child, split_child, published)
 
     def test_migrator(self):
-        user = mock.Mock(id=1)
-        self.migrator.migrate_mongo_course(self.course_location, user)
+        self.migrator.migrate_mongo_course(self.course_location, random.getrandbits(32))
         # now compare the migrated to the original course
         self.compare_courses(self.old_mongo, True)
         self.compare_courses(self.draft_mongo, False)

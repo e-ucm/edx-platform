@@ -10,6 +10,7 @@ from urlparse import urlparse, urlunparse
 
 from xmodule.modulestore import Location
 from .django import contentstore
+# to install PIL on MacOSX: 'easy_install http://dist.repoze.org/PIL-1.1.6.tar.gz'
 from PIL import Image
 
 
@@ -34,9 +35,7 @@ class StaticContent(object):
 
     @staticmethod
     def generate_thumbnail_name(original_name):
-        return u"{name_root}{extension}".format(
-            name_root=os.path.splitext(original_name)[0],
-            extension=XASSET_THUMBNAIL_TAIL_NAME,)
+        return ('{0}' + XASSET_THUMBNAIL_TAIL_NAME).format(os.path.splitext(original_name)[0])
 
     @staticmethod
     def compute_location(org, course, name, revision=None, is_thumbnail=False):
@@ -66,7 +65,7 @@ class StaticContent(object):
         """
         Returns a boolean if a path is believed to be a c4x link based on the leading element
         """
-        return path_string.startswith(u'/{0}/'.format(XASSET_LOCATION_TAG))
+        return path_string.startswith('/{0}/'.format(XASSET_LOCATION_TAG))
 
     @staticmethod
     def renamespace_c4x_path(path_string, target_location):
@@ -88,14 +87,14 @@ class StaticContent(object):
         the actual /c4x/... path which the client needs to reference static content
         """
         if location is not None:
-            return u"/static/{name}".format(**location.dict())
+            return "/static/{name}".format(**location.dict())
         else:
             return None
 
     @staticmethod
     def get_base_url_path_for_course_assets(loc):
         if loc is not None:
-            return u"/c4x/{org}/{course}/asset".format(**loc.dict())
+            return "/c4x/{org}/{course}/asset".format(**loc.dict())
 
     @staticmethod
     def get_id_from_location(location):
@@ -110,6 +109,15 @@ class StaticContent(object):
             path = path[1:]
 
         return Location(path.split('/'))
+
+    @staticmethod
+    def get_id_from_path(path):
+        return get_id_from_location(get_location_from_path(path))
+
+    @staticmethod
+    def convert_legacy_static_url(path, course_namespace):
+        loc = StaticContent.compute_location(course_namespace.org, course_namespace.course, path)
+        return StaticContent.get_url_path_from_location(loc)
 
     @staticmethod
     def convert_legacy_static_url_with_course_id(path, course_id):
@@ -169,10 +177,7 @@ class ContentStore(object):
 
     def get_all_content_for_course(self, location, start=0, maxresults=-1, sort=None):
         '''
-        Returns a list of static assets for a course, followed by the total number of assets.
-        By default all assets are returned, but start and maxresults can be provided to limit the query.
-
-        The return format is a list of dictionary elements. Example:
+        Returns a list of all static assets for a course. The return format is a list of dictionary elements. Example:
 
             [
 
@@ -230,6 +235,6 @@ class ContentStore(object):
 
             except Exception, e:
                 # log and continue as thumbnails are generally considered as optional
-                logging.exception(u"Failed to generate thumbnail for {0}. Exception: {1}".format(content.location, str(e)))
+                logging.exception("Failed to generate thumbnail for {0}. Exception: {1}".format(content.location, str(e)))
 
         return thumbnail_content, thumbnail_file_location

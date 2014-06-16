@@ -15,7 +15,6 @@ from xmodule.x_module import XModule
 from xmodule.xml_module import XmlDescriptor, name_to_pathname
 import textwrap
 from xmodule.contentstore.content import StaticContent
-from xblock.core import XBlock
 
 log = logging.getLogger("edx.courseware")
 
@@ -44,10 +43,6 @@ class HtmlModule(HtmlFields, XModule):
             resource_string(__name__, 'js/src/javascript_loader.coffee'),
             resource_string(__name__, 'js/src/collapsible.coffee'),
             resource_string(__name__, 'js/src/html/display.coffee')
-        ],
-        'js': [
-            resource_string(__name__, 'js/src/html/imageModal.js'),
-            resource_string(__name__, 'js/common_static/js/vendor/draggabilly.pkgd.js')
         ]
     }
     js_module_name = "HTMLModule"
@@ -234,7 +229,6 @@ class AboutFields(object):
     )
 
 
-@XBlock.tag("detached")
 class AboutModule(AboutFields, HtmlModule):
     """
     Overriding defaults but otherwise treated as HtmlModule.
@@ -242,7 +236,6 @@ class AboutModule(AboutFields, HtmlModule):
     pass
 
 
-@XBlock.tag("detached")
 class AboutDescriptor(AboutFields, HtmlDescriptor):
     """
     These pieces of course content are treated as HtmlModules but we need to overload where the templates are located
@@ -271,7 +264,6 @@ class StaticTabFields(object):
     )
 
 
-@XBlock.tag("detached")
 class StaticTabModule(StaticTabFields, HtmlModule):
     """
     Supports the field overrides
@@ -279,7 +271,6 @@ class StaticTabModule(StaticTabFields, HtmlModule):
     pass
 
 
-@XBlock.tag("detached")
 class StaticTabDescriptor(StaticTabFields, HtmlDescriptor):
     """
     These pieces of course content are treated as HtmlModules but we need to overload where the templates are located
@@ -300,7 +291,6 @@ class CourseInfoFields(object):
     )
 
 
-@XBlock.tag("detached")
 class CourseInfoModule(CourseInfoFields, HtmlModule):
     """
     Just to support xblock field overrides
@@ -308,7 +298,6 @@ class CourseInfoModule(CourseInfoFields, HtmlModule):
     pass
 
 
-@XBlock.tag("detached")
 class CourseInfoDescriptor(CourseInfoFields, HtmlDescriptor):
     """
     These pieces of course content are treated as HtmlModules but we need to overload where the templates are located

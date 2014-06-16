@@ -1,8 +1,8 @@
-define(["js/views/baseview", "underscore", "codemirror", "js/models/course_update",
+define(["backbone", "underscore", "codemirror", "js/models/course_update",
     "js/views/feedback_prompt", "js/views/feedback_notification", "js/views/course_info_helper", "js/utils/modal"],
-    function(BaseView, _, CodeMirror, CourseUpdateModel, PromptView, NotificationView, CourseInfoHelper, ModalUtils) {
+    function(Backbone, _, CodeMirror, CourseUpdateModel, PromptView, NotificationView, CourseInfoHelper, ModalUtils) {
 
-    var CourseInfoUpdateView = BaseView.extend({
+    var CourseInfoUpdateView = Backbone.View.extend({
         // collection is CourseUpdateCollection
         events: {
             "click .new-update-button" : "onNew",

@@ -1,29 +1,19 @@
 import unittest
-from datetime import datetime
+import datetime
 
 from fs.memoryfs import MemoryFS
 
 from mock import Mock, patch
 
-from xblock.runtime import KvsFieldData, DictKeyValueStore
-
+from xmodule.modulestore.xml import ImportSystem, XMLModuleStore
 import xmodule.course_module
-from xmodule.modulestore.xml import ImportSystem, XMLModuleStore, LocationReader
 from django.utils.timezone import UTC
 
 
 ORG = 'test_org'
 COURSE = 'test_course'
 
-NOW = datetime.strptime('2013-01-01T01:00:00', '%Y-%m-%dT%H:%M:00').replace(tzinfo=UTC())
-
-
-class CourseFieldsTestCase(unittest.TestCase):
-    def test_default_start_date(self):
-        self.assertEqual(
-            xmodule.course_module.CourseFields.start.default,
-            datetime(2030, 1, 1, tzinfo=UTC())
-        )
+NOW = datetime.datetime.strptime('2013-01-01T01:00:00', '%Y-%m-%dT%H:%M:00').replace(tzinfo=UTC())
 
 
 class DummySystem(ImportSystem):
@@ -34,6 +24,7 @@ class DummySystem(ImportSystem):
                                   load_error_modules=load_error_modules)
         course_id = "/".join([ORG, COURSE, 'test_run'])
         course_dir = "test_dir"
+        policy = {}
         error_tracker = Mock()
         parent_tracker = Mock()
 
@@ -41,11 +32,10 @@ class DummySystem(ImportSystem):
             xmlstore=xmlstore,
             course_id=course_id,
             course_dir=course_dir,
+            policy=policy,
             error_tracker=error_tracker,
             parent_tracker=parent_tracker,
             load_error_modules=load_error_modules,
-            field_data=KvsFieldData(DictKeyValueStore()),
-            id_reader=LocationReader(),
         )
 
 
@@ -87,7 +77,7 @@ class IsNewCourseTestCase(unittest.TestCase):
         # Needed for test_is_newish
         datetime_patcher = patch.object(
             xmodule.course_module, 'datetime',
-            Mock(wraps=datetime)
+            Mock(wraps=datetime.datetime)
         )
         mocked_datetime = datetime_patcher.start()
         mocked_datetime.now.return_value = NOW
@@ -134,28 +124,22 @@ class IsNewCourseTestCase(unittest.TestCase):
             print "Comparing %s to %s" % (a, b)
             assertion(a_score, b_score)
 
-    start_advertised_settings = [
-        # start, advertised, result, is_still_default
-        ('2012-12-02T12:00', None, 'Dec 02, 2012', False),
-        ('2012-12-02T12:00', '2011-11-01T12:00', 'Nov 01, 2011', False),
-        ('2012-12-02T12:00', 'Spring 2012', 'Spring 2012', False),
-        ('2012-12-02T12:00', 'November, 2011', 'November, 2011', False),
-        (xmodule.course_module.CourseFields.start.default, None, 'TBD', True),
-        (xmodule.course_module.CourseFields.start.default, 'January 2014', 'January 2014', False),
-    ]
-
     @patch('xmodule.course_module.datetime.now')
     def test_start_date_text(self, gmtime_mock):
         gmtime_mock.return_value = NOW
-        for s in self.start_advertised_settings:
+
+        settings = [
+            # start, advertized, result
+            ('2012-12-02T12:00', None, 'Dec 02, 2012'),
+            ('2012-12-02T12:00', '2011-11-01T12:00', 'Nov 01, 2011'),
+            ('2012-12-02T12:00', 'Spring 2012', 'Spring 2012'),
+            ('2012-12-02T12:00', 'November, 2011', 'November, 2011'),
+        ]
+
+        for s in settings:
             d = get_dummy_course(start=s[0], advertised_start=s[1])
             print "Checking start=%s advertised=%s" % (s[0], s[1])
             self.assertEqual(d.start_date_text, s[2])
-
-    def test_start_date_is_default(self):
-        for s in self.start_advertised_settings:
-            d = get_dummy_course(start=s[0], advertised_start=s[1])
-            self.assertEqual(d.start_date_is_still_default, s[3])
 
     def test_display_organization(self):
         descriptor = get_dummy_course(start='2012-12-02T12:00', is_new=True)

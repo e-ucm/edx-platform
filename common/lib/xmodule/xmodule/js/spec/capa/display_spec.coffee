@@ -52,19 +52,19 @@ describe 'Problem', ->
       expect(window.update_schematics).toHaveBeenCalled()
 
     it 'bind answer refresh on button click', ->
-      expect($('div.action input:button')).toHandleWith 'click', @problem.refreshAnswers
+      expect($('section.action input:button')).toHandleWith 'click', @problem.refreshAnswers
 
     it 'bind the check button', ->
-      expect($('div.action input.check')).toHandleWith 'click', @problem.check_fd
+      expect($('section.action input.check')).toHandleWith 'click', @problem.check_fd
 
     it 'bind the reset button', ->
-      expect($('div.action input.reset')).toHandleWith 'click', @problem.reset
+      expect($('section.action input.reset')).toHandleWith 'click', @problem.reset
 
     it 'bind the show button', ->
-      expect($('div.action button.show')).toHandleWith 'click', @problem.show
+      expect($('section.action button.show')).toHandleWith 'click', @problem.show
 
     it 'bind the save button', ->
-      expect($('div.action input.save')).toHandleWith 'click', @problem.save
+      expect($('section.action input.save')).toHandleWith 'click', @problem.save
 
     it 'bind the math input', ->
       expect($('input.math')).toHandleWith 'keyup', @problem.refreshMath
@@ -303,108 +303,6 @@ describe 'Problem', ->
           expect($('input#1_2_1_choiceinput_2bc').attr('disabled')).not.toEqual('disabled')
           expect($('input#1_2_1').attr('disabled')).not.toEqual('disabled')
 
-      describe 'imageinput', ->
-        imageinput_html = readFixtures('imageinput.html')
-        states = [
-          {
-            desc: 'rectangle is drawn correctly',
-            data: {
-              'rectangle': '(10,10)-(30,30)',
-              'regions': null
-            }
-          },
-          {
-            desc: 'region is drawn correctly',
-            data: {
-              'rectangle': null,
-              'regions': '[[10,10],[30,30],[70,30],[20,30]]'
-            }
-          },
-          {
-            desc: 'mixed shapes are drawn correctly',
-            data: {
-              'rectangle': '(10,10)-(30,30);(5,5)-(20,20)',
-              'regions': '''[
-                [[50,50],[40,40],[70,30],[50,70]],
-                [[90,95],[95,95],[90,70],[70,70]]
-              ]'''
-            }
-          },
-        ]
-
-        beforeEach ->
-          @problem = new Problem($('.xblock-student_view'))
-          @problem.el.prepend imageinput_html
-
-        stubRequest = (data) =>
-          spyOn($, 'postWithPrefix').andCallFake (url, callback) ->
-              callback answers: "12345": data
-
-        getImage = (coords, c_width, c_height) =>
-          types =
-            rectangle: (coords) =>
-              reg = /^\(([0-9]+),([0-9]+)\)-\(([0-9]+),([0-9]+)\)$/
-              rects = coords.replace(/\s*/g, '').split(/;/)
-
-              $.each rects, (index, rect) =>
-                abs = Math.abs
-                points = reg.exec(rect)
-                if points
-                  width = abs(points[3] - points[1])
-                  height = abs(points[4] - points[2])
-
-                  ctx.rect(points[1], points[2], width, height)
-
-              ctx.stroke()
-              ctx.fill()
-
-            regions: (coords) =>
-              parseCoords = (coords) =>
-                reg = JSON.parse(coords)
-
-                if typeof reg[0][0][0] == "undefined"
-                  reg = [reg]
-
-                return reg
-
-              $.each parseCoords(coords), (index, region) =>
-                ctx.beginPath()
-                $.each region, (index, point) =>
-                  if index is 0
-                    ctx.moveTo(point[0], point[1])
-                  else
-                    ctx.lineTo(point[0], point[1]);
-
-                ctx.closePath()
-                ctx.stroke()
-                ctx.fill()
-
-          canvas = document.createElement('canvas')
-          canvas.width = c_width or 100
-          canvas.height = c_height or 100
-
-          if canvas.getContext
-            ctx = canvas.getContext('2d')
-          else
-            return console.log 'Canvas is not supported.'
-
-          ctx.fillStyle = 'rgba(255,255,255,.3)';
-          ctx.strokeStyle = "#FF0000";
-          ctx.lineWidth = "2";
-
-          $.each coords, (key, value) =>
-            types[key](value) if types[key]? and value
-
-          return canvas
-
-        $.each states, (index, state) =>
-          it state.desc, ->
-            stubRequest(state.data)
-            @problem.show()
-            img = getImage(state.data)
-
-            expect(img).toImageDiffEqual($('canvas')[0])
-
     describe 'when the answers are already shown', ->
       beforeEach ->
         @problem.el.addClass 'showed'
@@ -509,5 +407,6 @@ describe 'Problem', ->
     xit 'serialize all answers', ->
       @problem.refreshAnswers()
       expect(@problem.answers).toEqual "input_1_1=one&input_1_2=two"
+
 
 

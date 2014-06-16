@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Unit tests for student optouts from course email
 """
@@ -27,8 +26,7 @@ class TestOptoutCourseEmails(ModuleStoreTestCase):
     """
 
     def setUp(self):
-        course_title = u"ẗëṡẗ title ｲ乇丂ｲ ﾶ乇丂丂ﾑg乇 ｷo尺 ﾑﾚﾚ тэѕт мэѕѕаБэ"
-        self.course = CourseFactory.create(display_name=course_title)
+        self.course = CourseFactory.create()
         self.instructor = AdminFactory.create()
         self.student = UserFactory.create()
         CourseEnrollmentFactory.create(user=self.student, course_id=self.course.id)

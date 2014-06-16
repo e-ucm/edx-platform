@@ -2,7 +2,7 @@
 // define() functions from Require JS available inside the anonymous function.
 (function (requirejs, require, define) {
 
-define('GLabelElOutput', [], function () {
+define('GLabelElOutput', ['logme'], function (logme) {
     return GLabelElOutput;
 
     function GLabelElOutput(config, state) {
@@ -35,13 +35,13 @@ define('GLabelElOutput', [], function () {
             }
 
             if (typeof obj['@el_id'] !== 'string') {
-                console.log('ERROR: You specified "output" as "plot_label", but did not spify "el_id".');
+                logme('ERROR: You specified "output" as "plot_label", but did not spify "el_id".');
 
                 return;
             }
 
             if (typeof obj['#text'] !== 'string') {
-                console.log('ERROR: Function body is not defined.');
+                logme('ERROR: Function body is not defined.');
 
                 return;
             }
@@ -62,7 +62,7 @@ define('GLabelElOutput', [], function () {
                 }
             } else {
                 if (funcString.search(/return/i) === -1) {
-                    console.log(
+                    logme(
                         'ERROR: You have specified a JavaScript ' +
                         'function without a "return" statemnt. Your ' +
                         'function will return "undefined" by default.'
@@ -80,12 +80,12 @@ define('GLabelElOutput', [], function () {
             try {
                 func = Function.apply(null, paramNames);
             } catch (err) {
-                console.log(
+                logme(
                     'ERROR: The function body "' +
                         funcString +
                         '" was not converted by the Function constructor.'
                 );
-                console.log('Error message: "' + err.message + '".');
+                logme('Error message: "' + err.message + '".');
 
                 if (state.showDebugInfo) {
                     $('#' + gstId).html('<div style="color: red;">' + 'ERROR IN XML: Could not create a function from string "' + funcString + '".' + '</div>');

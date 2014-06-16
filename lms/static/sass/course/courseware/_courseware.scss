@@ -125,7 +125,7 @@ div.course-wrapper {
       }
     }
 
-    section.xmodule_WrapperModule div.vert-mod > div {
+    section.xmodule_WrapperModule ol.vert-mod > li {
       border-bottom: none;
     }
 
@@ -193,7 +193,7 @@ div.course-wrapper {
   }
 
   &.closed {
-    div.course-index {
+    section.course-index {
       width: flex-grid(.6);
       overflow: hidden;
 

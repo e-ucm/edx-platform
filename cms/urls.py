@@ -1,6 +1,10 @@
 from django.conf import settings
 from django.conf.urls import patterns, include, url
+
+# TODO: This should be removed once the CMS is running via wsgi on all production servers
+import cms.startup as startup
 from xmodule.modulestore import parsers
+startup.run()
 
 # There is a course creators admin table.
 from ratelimitbackend import admin
@@ -16,11 +20,15 @@ urlpatterns = patterns('',  # nopep8
     url(r'^transcripts/rename$', 'contentstore.views.rename_transcripts', name='rename_transcripts'),
     url(r'^transcripts/save$', 'contentstore.views.save_transcripts', name='save_transcripts'),
 
-    url(r'^preview/xblock/(?P<usage_id>.*?)/handler/(?P<handler>[^/]*)(?:/(?P<suffix>.*))?$',
+    url(r'^preview/xblock/(?P<usage_id>.*?)/handler/(?P<handler>[^/]*)(?:/(?P<suffix>[^/]*))?$',
         'contentstore.views.preview_handler', name='preview_handler'),
 
-    url(r'^xblock/(?P<usage_id>.*?)/handler/(?P<handler>[^/]*)(?:/(?P<suffix>.*))?$',
-        'contentstore.views.component_handler', name='component_handler'),
+    url(r'^(?P<org>[^/]+)/(?P<course>[^/]+)/textbooks/(?P<name>[^/]+)$',
+        'contentstore.views.textbook_index', name='textbook_index'),
+    url(r'^(?P<org>[^/]+)/(?P<course>[^/]+)/textbooks/(?P<name>[^/]+)/new$',
+        'contentstore.views.create_textbook', name='create_textbook'),
+    url(r'^(?P<org>[^/]+)/(?P<course>[^/]+)/textbooks/(?P<name>[^/]+)/(?P<tid>\d[^/]*)$',
+        'contentstore.views.textbook_by_id', name='textbook_by_id'),
 
     # temporary landing page for a course
     url(r'^edge/(?P<org>[^/]+)/(?P<course>[^/]+)/course/(?P<coursename>[^/]+)$',
@@ -42,7 +50,7 @@ urlpatterns = patterns('',  # nopep8
 urlpatterns += patterns(
     '',
 
-    url(r'^create_account$', 'student.views.create_account', name='create_account'),
+    url(r'^create_account$', 'student.views.create_account'),
     url(r'^activate/(?P<key>[^/]*)$', 'student.views.activate_account', name='activate'),
 
     # ajax view that actually does the work
@@ -81,14 +89,11 @@ urlpatterns += patterns(
     url(r'(?ix)^settings/details/{}$'.format(parsers.URL_RE_SOURCE), 'settings_handler'),
     url(r'(?ix)^settings/grading/{}(/)?(?P<grader_index>\d+)?$'.format(parsers.URL_RE_SOURCE), 'grading_handler'),
     url(r'(?ix)^settings/advanced/{}$'.format(parsers.URL_RE_SOURCE), 'advanced_settings_handler'),
-    url(r'(?ix)^textbooks/{}$'.format(parsers.URL_RE_SOURCE), 'textbooks_list_handler'),
-    url(r'(?ix)^textbooks/{}/(?P<tid>\d[^/]*)$'.format(parsers.URL_RE_SOURCE), 'textbooks_detail_handler'),
 )
 
 js_info_dict = {
     'domain': 'djangojs',
-    # No packages needed, we get LOCALE_PATHS anyway.
-    'packages': (),
+    'packages': ('cms',),
 }
 
 urlpatterns += patterns('',

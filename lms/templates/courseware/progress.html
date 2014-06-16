@@ -9,17 +9,13 @@
 
 <%namespace name="progress_graph" file="/courseware/progress_graph.js"/>
 
-<%block name="pagetitle">${_("{course_number} Progress").format(course_number=course.display_number_with_default) | h}</%block>
-<%block name="nav_skip">#course-info-progress</%block>
+<%block name="title"><title>${_("{course_number} Progress").format(course_number=course.display_number_with_default) | h}</title></%block>
 
 <%!
     from django.core.urlresolvers import reverse
 %>
 
-<%!
-from xmodule.util.date_utils import get_time_display
-from django.conf import settings
-%>
+<%! from xmodule.util.date_utils import get_time_display %>
 
 <%block name="js_extra">
 <script type="text/javascript" src="${static.url('js/vendor/flot/jquery.flot.js')}"></script>
@@ -30,13 +26,12 @@ ${progress_graph.body(grade_summary, course.grade_cutoffs, "grade-detail-graph",
 </script>
 </%block>
 
-<%include file="/dashboard/_dashboard_prompt_midcourse_reverify.html" />
 <%include file="/courseware/course_navigation.html" args="active_page='progress'" />
 
-<div class="container">
+<section class="container">
   <div class="profile-wrapper">
 
-    <div class="course-info" id="course-info-progress" aria-label="${_('Course Progress')}">
+    <section class="course-info">
       <header>
       <h1>${_("Course Progress for Student '{username}' ({email})").format(username=student.username, email=student.email)}</h1>
       </header>
@@ -45,15 +40,15 @@ ${progress_graph.body(grade_summary, course.grade_cutoffs, "grade-detail-graph",
         <div id="grade-detail-graph" aria-hidden="true"></div>
       %endif
 
-      <div class="chapters">
+      <ol class="chapters">
         %for chapter in courseware_summary:
         %if not chapter['display_name'] == "hidden":
-        <section>
+        <li>
           <h2>${ chapter['display_name'] }</h2>
 
-          <div class="sections">
+          <ol class="sections">
             %for section in chapter['sections']:
-            <div>
+            <li>
               <%
               earned = section['section_total'].earned
               total = section['section_total'].possible
@@ -64,10 +59,9 @@ ${progress_graph.body(grade_summary, course.grade_cutoffs, "grade-detail-graph",
                 ${ section['display_name'] }
                 %if total > 0 or earned > 0:
                   <span class="sr">
-                    ${_("{earned:.3n} of {total:.3n} possible points").format( earned = float(earned), total = float(total) )}
-                  </span>
+                    ${"{0:.3n} of {1:.3n} possible points".format( float(earned), float(total) )}
+                  </span></a>
                 %endif
-                </a>
                 %if total > 0 or earned > 0:
                   <span> ${"({0:.3n}/{1:.3n}) {2}".format( float(earned), float(total), percentageString )}</span>
                 %endif
@@ -77,8 +71,8 @@ ${progress_graph.body(grade_summary, course.grade_cutoffs, "grade-detail-graph",
 
                 %if section.get('due') is not None:
                   <%
-                      formatted_string = get_time_display(section['due'], course.due_date_display_format, coerce_tz=settings.TIME_ZONE)
-                      due_date = '' if len(formatted_string)==0 else _(u'due {date}').format(date=formatted_string)
+                      formatted_string = get_time_display(section['due'], course.due_date_display_format)
+                      due_date = '' if len(formatted_string)==0 else _('due {date}'.format(date=formatted_string))
                   %>
                   <em>
                   ${due_date}
@@ -86,9 +80,9 @@ ${progress_graph.body(grade_summary, course.grade_cutoffs, "grade-detail-graph",
                 %endif
               </p>
 
-              <div class="scores">
+              <section class="scores">
                 %if len(section['scores']) > 0:
-                  <h3> ${ _("Problem Scores: ") if section['graded'] else _("Practice Scores: ")} </h3>
+                  <h3> ${ "Problem Scores: " if section['graded'] else "Practice Scores: "} </h3>
                   <ol>
                     %for score in section['scores']:
                     <li>${"{0:.3n}/{1:.3n}".format(float(score.earned),float(score.possible))}</li>
@@ -97,17 +91,17 @@ ${progress_graph.body(grade_summary, course.grade_cutoffs, "grade-detail-graph",
                 %else:
                   <h3 class="no-scores"> ${_("No problem scores in this section")} </h3>
                 %endif
-              </div>
+              </section>
 
 
-            </div> <!--End section-->
+            </li> <!--End section-->
             %endfor
-          </div> <!--End sections-->
-        </section> <!--End chapter-->
+          </ol> <!--End sections-->
+        </li> <!--End chapter-->
         %endif
         %endfor
-      </div> <!--End chapters-->
+      </ol> <!--End chapters-->
 
-    </div>
+    </section>
   </div>
-</div>
+</section>

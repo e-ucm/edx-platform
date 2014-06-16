@@ -22,6 +22,7 @@ from django.views.decorators.http import require_http_methods, require_GET
 from django.utils.translation import ugettext as _
 
 from edxmako.shortcuts import render_to_response
+from auth.authz import create_all_course_groups
 
 from xmodule.modulestore.xml_importer import import_from_xml
 from xmodule.contentstore.django import contentstore
@@ -30,12 +31,10 @@ from xmodule.modulestore.django import modulestore, loc_mapper
 from xmodule.exceptions import SerializationError
 
 from xmodule.modulestore.locator import BlockUsageLocator
-from .access import has_course_access
+from .access import has_access
 
 from util.json_request import JsonResponse
 from extract_tar import safetar_extractall
-from student.roles import CourseInstructorRole, CourseStaffRole
-from student import auth
 
 
 __all__ = ['import_handler', 'import_status_handler', 'export_handler']
@@ -51,7 +50,7 @@ CONTENT_RE = re.compile(r"(?P<start>\d{1,11})-(?P<stop>\d{1,11})/(?P<end>\d{1,11
 @login_required
 @ensure_csrf_cookie
 @require_http_methods(("GET", "POST", "PUT"))
-def import_handler(request, tag=None, package_id=None, branch=None, version_guid=None, block=None):
+def import_handler(request, tag=None, course_id=None, branch=None, version_guid=None, block=None):
     """
     The restful handler for importing a course.
 
@@ -61,8 +60,8 @@ def import_handler(request, tag=None, package_id=None, branch=None, version_guid
     POST or PUT
         json: import a course via the .tar.gz file specified in request.FILES
     """
-    location = BlockUsageLocator(package_id=package_id, branch=branch, version_guid=version_guid, block_id=block)
-    if not has_course_access(request.user, location):
+    location = BlockUsageLocator(course_id=course_id, branch=branch, version_guid=version_guid, usage_id=block)
+    if not has_access(request.user, location):
         raise PermissionDenied()
 
     old_location = loc_mapper().translate_locator_to_location(location)
@@ -149,7 +148,7 @@ def import_handler(request, tag=None, package_id=None, branch=None, version_guid
 
                 # Use sessions to keep info about import progress
                 session_status = request.session.setdefault("import_status", {})
-                key = location.package_id + filename
+                key = location.course_id + filename
                 session_status[key] = 1
                 request.session.modified = True
 
@@ -226,17 +225,15 @@ def import_handler(request, tag=None, package_id=None, branch=None, version_guid
                         draft_store=modulestore()
                     )
 
-                    new_location = course_items[0].location
-                    logging.debug('new course at {0}'.format(new_location))
+                    logging.debug('new course at {0}'.format(course_items[0].location))
 
                     session_status[key] = 3
                     request.session.modified = True
 
-                    auth.add_users(request.user, CourseInstructorRole(new_location), request.user)
-                    auth.add_users(request.user, CourseStaffRole(new_location), request.user)
-                    logging.debug('created all course groups at {0}'.format(new_location))
+                    create_all_course_groups(request.user, course_items[0].location)
+                    logging.debug('created all course groups at {0}'.format(course_items[0].location))
 
-                # Send errors to client with stage at which error occurred.
+                # Send errors to client with stage at which error occured.
                 except Exception as exception:   # pylint: disable=W0703
                     return JsonResponse(
                         {
@@ -264,7 +261,7 @@ def import_handler(request, tag=None, package_id=None, branch=None, version_guid
 @require_GET
 @ensure_csrf_cookie
 @login_required
-def import_status_handler(request, tag=None, package_id=None, branch=None, version_guid=None, block=None, filename=None):
+def import_status_handler(request, tag=None, course_id=None, branch=None, version_guid=None, block=None, filename=None):
     """
     Returns an integer corresponding to the status of a file import. These are:
 
@@ -274,13 +271,13 @@ def import_status_handler(request, tag=None, package_id=None, branch=None, versi
         3 : Importing to mongo
 
     """
-    location = BlockUsageLocator(package_id=package_id, branch=branch, version_guid=version_guid, block_id=block)
-    if not has_course_access(request.user, location):
+    location = BlockUsageLocator(course_id=course_id, branch=branch, version_guid=version_guid, usage_id=block)
+    if not has_access(request.user, location):
         raise PermissionDenied()
 
     try:
         session_status = request.session["import_status"]
-        status = session_status[location.package_id + filename]
+        status = session_status[location.course_id + filename]
     except KeyError:
         status = 0
 
@@ -290,7 +287,7 @@ def import_status_handler(request, tag=None, package_id=None, branch=None, versi
 @ensure_csrf_cookie
 @login_required
 @require_http_methods(("GET",))
-def export_handler(request, tag=None, package_id=None, branch=None, version_guid=None, block=None):
+def export_handler(request, tag=None, course_id=None, branch=None, version_guid=None, block=None):
     """
     The restful handler for exporting a course.
 
@@ -305,8 +302,8 @@ def export_handler(request, tag=None, package_id=None, branch=None, version_guid
     If the tar.gz file has been requested but the export operation fails, an HTML page will be returned
     which describes the error.
     """
-    location = BlockUsageLocator(package_id=package_id, branch=branch, version_guid=version_guid, block_id=block)
-    if not has_course_access(request.user, location):
+    location = BlockUsageLocator(course_id=course_id, branch=branch, version_guid=version_guid, usage_id=block)
+    if not has_access(request.user, location):
         raise PermissionDenied()
 
     old_location = loc_mapper().translate_locator_to_location(location)

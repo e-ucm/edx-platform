@@ -6,11 +6,12 @@ from xmodule.modulestore.store_utilities import clone_course
 from xmodule.modulestore.django import modulestore
 from xmodule.contentstore.django import contentstore
 from xmodule.course_module import CourseDescriptor
-from student.roles import CourseInstructorRole, CourseStaffRole
+
+from auth.authz import _copy_course_group
 
 
 #
-# To run from command line: ./manage.py cms clone_course --settings=dev master/300/cough edx/111/foo
+# To run from command line: rake cms:clone SOURCE_LOC=MITx/111/Foo1 DEST_LOC=MITx/135/Foo3
 #
 class Command(BaseCommand):
     """Clone a MongoDB-backed course to another location"""
@@ -19,7 +20,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         "Execute the command"
         if len(args) != 2:
-            raise CommandError("clone requires 2 arguments: <source-course_id> <dest-course_id>")
+            raise CommandError("clone requires two arguments: <source-course_id> <dest-course_id>")
 
         source_course_id = args[0]
         dest_course_id = args[1]
@@ -27,7 +28,7 @@ class Command(BaseCommand):
         mstore = modulestore('direct')
         cstore = contentstore()
 
-        org, course_num, _ = dest_course_id.split("/")
+        org, course_num, run = dest_course_id.split("/")
         mstore.ignore_write_events_on_courses.append('{0}/{1}'.format(org, course_num))
 
         print("Cloning course {0} to {1}".format(source_course_id, dest_course_id))
@@ -40,10 +41,4 @@ class Command(BaseCommand):
             mstore.refresh_cached_metadata_inheritance_tree(dest_location)
 
             print("copying User permissions...")
-            # purposely avoids auth.add_user b/c it doesn't have a caller to authorize
-            CourseInstructorRole(dest_location).add_users(
-                *CourseInstructorRole(source_location).users_with_role()
-            )
-            CourseStaffRole(dest_location).add_users(
-                *CourseStaffRole(source_location).users_with_role()
-            )
+            _copy_course_group(source_location, dest_location)

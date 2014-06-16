@@ -24,18 +24,7 @@ window.rewriteStaticLinks = function(content, from, to) {
     if (from === null || to === null) {
         return content;
     }
-    // replace only relative urls
-    function replacer(match){
-        if (match === from){
-            return to;
-        }
-        else {
-            return match;
-        }
-    }
-    // change all relative urls only which may be embedded inside other tags in content.
-    // handle http and https
-    // note: add other protocols here
-    var regex = new RegExp("(https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}([-a-zA-Z0-9@:%_\+.~#?&//=]*))?"+from, 'g');
-    return content.replace(regex, replacer);
+
+    var regex = new RegExp(from, 'g');
+    return content.replace(regex, to);
 };

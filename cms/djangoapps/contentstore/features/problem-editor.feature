@@ -1,4 +1,4 @@
-@shard_1
+@shard_3
 Feature: CMS.Problem Editor
   As a course author, I want to be able to create problems and edit their settings.
 

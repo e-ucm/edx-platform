@@ -23,11 +23,10 @@ from textwrap import dedent
 from django.core.management.base import BaseCommand, CommandError
 
 from xmodule.modulestore.django import modulestore
-from xmodule.modulestore.inheritance import own_metadata, compute_inherited_metadata
-from xblock.fields import Scope
+from xmodule.modulestore.inheritance import own_metadata
+
 
 FILTER_LIST = ['xml_attributes', 'checklists']
-INHERITED_FILTER_LIST = ['children', 'xml_attributes', 'checklists']
 
 
 class Command(BaseCommand):
@@ -42,14 +41,6 @@ class Command(BaseCommand):
                     action='store',
                     default='default',
                     help='Name of the modulestore'),
-        make_option('--inherited',
-                    action='store_true',
-                    default=False,
-                    help='Whether to include inherited metadata'),
-        make_option('--inherited_defaults',
-                    action='store_true',
-                    default=False,
-                    help='Whether to include default values of inherited metadata'),
     )
 
     def handle(self, *args, **options):
@@ -71,18 +62,14 @@ class Command(BaseCommand):
         if course is None:
             raise CommandError("Invalid course_id")
 
-        # precompute inherited metadata at the course level, if needed:
-        if options['inherited']:
-            compute_inherited_metadata(course)
-
         # Convert course data to dictionary and dump it as JSON to stdout
 
-        info = dump_module(course, inherited=options['inherited'], defaults=options['inherited_defaults'])
+        info = dump_module(course)
 
         return json.dumps(info, indent=2, sort_keys=True)
 
 
-def dump_module(module, destination=None, inherited=False, defaults=False):
+def dump_module(module, destination=None):
     """
     Add the module and all its children to the destination dictionary in
     as a flat structure.
@@ -95,30 +82,11 @@ def dump_module(module, destination=None, inherited=False, defaults=False):
 
     destination[module.location.url()] = {
         'category': module.location.category,
-        'children': [str(child) for child in getattr(module, 'children', [])],
-        'metadata': filtered_metadata,
+        'children': module.children if hasattr(module, 'children') else [],
+        'metadata': filtered_metadata
     }
 
-    if inherited:
-        # when calculating inherited metadata, don't include existing
-        # locally-defined metadata
-        inherited_metadata_filter_list = list(filtered_metadata.keys())
-        inherited_metadata_filter_list.extend(INHERITED_FILTER_LIST)
-
-        def is_inherited(field):
-            if field.name in inherited_metadata_filter_list:
-                return False
-            elif field.scope != Scope.settings:
-                return False
-            elif defaults:
-                return True
-            else:
-                return field.values != field.default
-
-        inherited_metadata = {field.name: field.read_json(module) for field in module.fields.values() if is_inherited(field)}
-        destination[module.location.url()]['inherited_metadata'] = inherited_metadata
-
     for child in module.get_children():
-        dump_module(child, destination, inherited, defaults)
+        dump_module(child, destination)
 
     return destination

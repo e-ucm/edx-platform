@@ -202,7 +202,7 @@ class ShibSPTest(ModuleStoreTestCase):
                 else:
                     self.assertEqual(response.status_code, 200)
                     self.assertContains(response,
-                                        ("Preferences for {platform_name}"
+                                        ("<title>Preferences for {platform_name}</title>"
                                          .format(platform_name=settings.PLATFORM_NAME)))
                     # no audit logging calls
                     self.assertEquals(len(audit_log_calls), 0)

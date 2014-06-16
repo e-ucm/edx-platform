@@ -4,7 +4,7 @@ sessions. Assumes structure:
 
 /envroot/
         /db   # This is where it'll write the database file
-        /edx-platform  # The location of this repo
+        /mitx # The location of this repo
         /log  # Where we're going to write log files
 """
 
@@ -117,7 +117,7 @@ CACHES = {
     # In staging/prod envs, the sessions also live here.
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'edx_loc_mem_cache',
+        'LOCATION': 'mitx_loc_mem_cache',
         'KEY_FUNCTION': 'util.memcache.safe_key',
     },
 
@@ -138,16 +138,8 @@ CACHES = {
         'LOCATION': '/var/tmp/mongo_metadata_inheritance',
         'TIMEOUT': 300,
         'KEY_FUNCTION': 'util.memcache.safe_key',
-    },
-    'loc_cache': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'edx_location_mem_cache',
-    },
-
+    }
 }
-
-# Add external_auth to Installed apps for testing
-INSTALLED_APPS += ('external_auth', )
 
 # hide ratelimit warnings while running tests
 filterwarnings('ignore', message='No request passed to the backend, unable to rate-limit')
@@ -157,17 +149,6 @@ filterwarnings('ignore', message='No request passed to the backend, unable to ra
 CELERY_ALWAYS_EAGER = True
 CELERY_RESULT_BACKEND = 'cache'
 BROKER_TRANSPORT = 'memory'
-
-
-########################### Server Ports ###################################
-
-# These ports are carefully chosen so that if the browser needs to
-# access them, they will be available through the SauceLabs SSH tunnel
-LETTUCE_SERVER_PORT = 8003
-XQUEUE_PORT = 8040
-YOUTUBE_PORT = 8031
-LTI_PORT = 8765
-
 
 ################### Make tests faster
 # http://slacy.com/blog/2012/04/make-your-tests-faster-in-django-1-4/
@@ -185,4 +166,4 @@ FEATURES['STUDIO_NPS_SURVEY'] = False
 FEATURES['ENABLE_SERVICE_STATUS'] = True
 
 # This is to disable a test under the common directory that will not pass when run under CMS
-FEATURES['DISABLE_RESET_EMAIL_TEST'] = True
+FEATURES['DISABLE_PASSWORD_RESET_EMAIL_TEST'] = True

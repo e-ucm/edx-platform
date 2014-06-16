@@ -4,9 +4,8 @@ Modulestore configuration for test cases.
 
 from uuid import uuid4
 from django.test import TestCase
-from xmodule.modulestore.django import (
-    editable_modulestore, clear_existing_modulestores, loc_mapper)
-from xmodule.contentstore.django import contentstore
+from xmodule.modulestore.django import editable_modulestore, \
+    clear_existing_modulestores
 
 
 def mixed_store_config(data_dir, mappings):
@@ -56,7 +55,7 @@ def mongo_store_config(data_dir):
             'DOC_STORE_CONFIG': {
                 'host': 'localhost',
                 'db': 'test_xmodule',
-                'collection': 'modulestore{0}'.format(uuid4().hex[:5]),
+                'collection': 'modulestore_%s' % uuid4().hex,
             },
             'OPTIONS': {
                 'default_class': 'xmodule.raw_module.RawDescriptor',
@@ -87,7 +86,7 @@ def draft_mongo_store_config(data_dir):
             'DOC_STORE_CONFIG': {
                 'host': 'localhost',
                 'db': 'test_xmodule',
-                'collection': 'modulestore{0}'.format(uuid4().hex[:5]),
+                'collection': 'modulestore_%s' % uuid4().hex,
             },
             'OPTIONS': modulestore_options
         }
@@ -122,7 +121,7 @@ def studio_store_config(data_dir):
     store_config = {
         'host': 'localhost',
         'db': 'test_xmodule',
-        'collection': 'modulestore{0}'.format(uuid4().hex[:5]),
+        'collection': 'modulestore_%s' % uuid4().hex,
     }
     options = {
         'default_class': 'xmodule.raw_module.RawDescriptor',
@@ -212,22 +211,17 @@ class ModuleStoreTestCase(TestCase):
         return updated_course
 
     @staticmethod
-    def drop_mongo_collections():
+    def drop_mongo_collection():
         """
-        If using a Mongo-backed modulestore & contentstore, drop the collections.
+        If using a Mongo-backed modulestore, drop the collection.
         """
 
         # This will return the mongo-backed modulestore
         # even if we're using a mixed modulestore
         store = editable_modulestore()
+
         if hasattr(store, 'collection'):
             store.collection.drop()
-        if contentstore().fs_files:
-            db = contentstore().fs_files.database
-            db.connection.drop_database(db)
-        location_mapper = loc_mapper()
-        if location_mapper.db:
-            location_mapper.location_map.drop()
 
     @classmethod
     def setUpClass(cls):
@@ -247,7 +241,7 @@ class ModuleStoreTestCase(TestCase):
         Clean up any data stored in Mongo.
         """
         # Clean up by flushing the Mongo modulestore
-        cls.drop_mongo_collections()
+        cls.drop_mongo_collection()
 
         # Clear out the existing modulestores,
         # which will cause them to be re-created
@@ -263,7 +257,7 @@ class ModuleStoreTestCase(TestCase):
         """
 
         # Flush the Mongo modulestore
-        ModuleStoreTestCase.drop_mongo_collections()
+        ModuleStoreTestCase.drop_mongo_collection()
 
         # Call superclass implementation
         super(ModuleStoreTestCase, self)._pre_setup()
@@ -272,7 +266,7 @@ class ModuleStoreTestCase(TestCase):
         """
         Flush the ModuleStore after each test.
         """
-        ModuleStoreTestCase.drop_mongo_collections()
+        ModuleStoreTestCase.drop_mongo_collection()
 
         # Call superclass implementation
         super(ModuleStoreTestCase, self)._post_teardown()

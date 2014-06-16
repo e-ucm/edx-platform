@@ -6,24 +6,23 @@ from datetime import datetime, timedelta
 from functools import partial
 
 from django.conf import settings
-from django.contrib.auth.models import Group, AnonymousUser
+from django.contrib.auth.models import Group
 
 from xmodule.course_module import CourseDescriptor
 from xmodule.error_module import ErrorDescriptor
 from xmodule.modulestore import Location
-from xmodule.x_module import XModule
-
-from xblock.core import XBlock
+from xmodule.x_module import XModule, XModuleDescriptor
 
 from student.models import CourseEnrollmentAllowed
 from external_auth.models import ExternalAuthMap
 from courseware.masquerade import is_masquerading_as_student
 from django.utils.timezone import UTC
 from student.models import CourseEnrollment
-from student.roles import (
+from courseware.roles import (
     GlobalStaff, CourseStaffRole, CourseInstructorRole,
     OrgStaffRole, OrgInstructorRole, CourseBetaTesterRole
 )
+
 DEBUG_ACCESS = False
 
 log = logging.getLogger(__name__)
@@ -45,8 +44,7 @@ def has_access(user, obj, action, course_context=None):
     - DISABLE_START_DATES
     - different access for instructor, staff, course staff, and students.
 
-    user: a Django user object. May be anonymous. If none is passed,
-                    anonymous is assumed
+    user: a Django user object. May be anonymous.
 
     obj: The object to check access for.  A module, descriptor, location, or
                     certain special strings (e.g. 'global')
@@ -63,10 +61,6 @@ def has_access(user, obj, action, course_context=None):
     Returns a bool.  It is up to the caller to actually deny access in a way
     that makes sense in context.
     """
-    # Just in case user is passed in as None, make them anonymous
-    if not user:
-        user = AnonymousUser()
-
     # delegate the work to type-specific functions.
     # (start with more specific types, then get more general)
     if isinstance(obj, CourseDescriptor):
@@ -75,12 +69,12 @@ def has_access(user, obj, action, course_context=None):
     if isinstance(obj, ErrorDescriptor):
         return _has_access_error_desc(user, obj, action, course_context)
 
+    # NOTE: any descriptor access checkers need to go above this
+    if isinstance(obj, XModuleDescriptor):
+        return _has_access_descriptor(user, obj, action, course_context)
+
     if isinstance(obj, XModule):
         return _has_access_xmodule(user, obj, action, course_context)
-
-    # NOTE: any descriptor access checkers need to go above this
-    if isinstance(obj, XBlock):
-        return _has_access_descriptor(user, obj, action, course_context)
 
     if isinstance(obj, Location):
         return _has_access_location(user, obj, action, course_context)
@@ -245,7 +239,7 @@ def _has_access_descriptor(user, descriptor, action, course_context=None):
             return True
 
         # Check start date
-        if 'detached' not in descriptor._class_tags and descriptor.start is not None:
+        if descriptor.start is not None:
             now = datetime.now(UTC())
             effective_start = _adjust_start_date_for_beta_testers(
                 user,
@@ -339,11 +333,11 @@ def _dispatch(table, action, user, obj):
         debug("%s user %s, object %s, action %s",
               'ALLOWED' if result else 'DENIED',
               user,
-              obj.location.url() if isinstance(obj, XBlock) else str(obj)[:60],
+              obj.location.url() if isinstance(obj, XModuleDescriptor) else str(obj)[:60],
               action)
         return result
 
-    raise ValueError(u"Unknown action for object type '{0}': '{1}'".format(
+    raise ValueError("Unknown action for object type '{0}': '{1}'".format(
         type(obj), action))
 
 
@@ -466,20 +460,3 @@ def _has_staff_access_to_descriptor(user, descriptor, course_context=None):
     descriptor: something that has a location attribute
     """
     return _has_staff_access_to_location(user, descriptor.location, course_context)
-
-
-def get_user_role(user, course_id):
-    """
-    Return corresponding string if user has staff, instructor or student
-    course role in LMS.
-    """
-    from courseware.courses import get_course
-    course = get_course(course_id)
-    if is_masquerading_as_student(user):
-        return 'student'
-    elif has_access(user, course, 'instructor'):
-        return 'instructor'
-    elif has_access(user, course, 'staff'):
-        return 'staff'
-    else:
-        return 'student'

@@ -1,5 +1,5 @@
-define(["js/views/baseview", "underscore", "jquery"], function(BaseView, _, $) {
-    var ChecklistView = BaseView.extend({
+define(["backbone", "underscore", "jquery"], function(Backbone, _, $) {
+    var ChecklistView = Backbone.View.extend({
         // takes CMS.Models.Checklists as model
 
         events : {

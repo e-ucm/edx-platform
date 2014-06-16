@@ -11,7 +11,6 @@ from lxml import etree
 
 from cache_toolbox.core import del_cached_content
 from django.conf import settings
-from django.utils.translation import ugettext as _
 
 from xmodule.exceptions import NotFoundError
 from xmodule.contentstore.content import StaticContent
@@ -104,10 +103,8 @@ def get_transcripts_from_youtube(youtube_id):
     data = requests.get(youtube_api['url'], params=youtube_api['params'])
 
     if data.status_code != 200 or not data.text:
-        msg = _("Can't receive transcripts from Youtube for {youtube_id}. Status code: {statuc_code}.").format(
-            youtube_id=youtube_id,
-            statuc_code=data.status_code
-        )
+        msg = "Can't receive transcripts from Youtube for {}. Status code: {}.".format(
+            youtube_id, data.status_code)
         raise GetTranscriptsFromYouTubeException(msg)
 
     sub_starts, sub_ends, sub_texts = [], [], []
@@ -165,7 +162,7 @@ def download_youtube_subs(youtube_subs, item):
         highest_speed_subs = subs
 
     if not highest_speed:
-        raise GetTranscriptsFromYouTubeException(_("Can't find any transcripts on the Youtube service."))
+        raise GetTranscriptsFromYouTubeException("Can't find any transcripts on the Youtube service.")
 
     # When we exit from the previous loop, `highest_speed` and `highest_speed_subs`
     # are the transcripts data for the highest speed available on the
@@ -199,7 +196,6 @@ def remove_subs_from_store(subs_id, item):
     try:
         content = contentstore().find(content_location)
         contentstore().delete(content.get_id())
-        del_cached_content(content.location)
         log.info("Removed subs %s from store", subs_id)
     except NotFoundError:
         pass
@@ -217,16 +213,16 @@ def generate_subs_from_source(speed_subs, subs_type, subs_filedata, item):
     :returns: True, if all subs are generated and saved successfully.
     """
     if subs_type != 'srt':
-        raise TranscriptsGenerationException(_("We support only SubRip (*.srt) transcripts format."))
+        raise TranscriptsGenerationException("We support only SubRip (*.srt) transcripts format.")
     try:
         srt_subs_obj = SubRipFile.from_string(subs_filedata)
     except Exception as e:
-        msg = _("Something wrong with SubRip transcripts file during parsing. Inner message is {error_message}").format(
-            error_message=e.message
+        raise TranscriptsGenerationException(
+            "Something wrong with SubRip transcripts file during parsing. "
+            "Inner message is {}".format(e.message)
         )
-        raise TranscriptsGenerationException(msg)
     if not srt_subs_obj:
-        raise TranscriptsGenerationException(_("Something wrong with SubRip transcripts file during parsing."))
+        raise TranscriptsGenerationException("Something wrong with SubRip transcripts file during parsing.")
 
     sub_starts = []
     sub_ends = []
@@ -314,9 +310,7 @@ def manage_video_subtitles_save(old_item, new_item):
 
     Video player item has some video fields: HTML5 ones and Youtube one.
 
-    If value of `sub` field of `new_item` is cleared, transcripts should be removed.
-
-    If value of `sub` field of `new_item` is different from values of video fields of `new_item`,
+    1. If value of `sub` field of `new_item` is different from values of video fields of `new_item`,
     and `new_item.sub` file is present, then code in this function creates copies of
     `new_item.sub` file with new names. That names are equal to values of video fields of `new_item`
     After that `sub` field of `new_item` is changed to one of values of video fields.
@@ -333,9 +327,6 @@ def manage_video_subtitles_save(old_item, new_item):
     sub_name = new_item.sub
     for video_id in possible_video_id_list:
         if not video_id:
-            continue
-        if not sub_name:
-            remove_subs_from_store(video_id, new_item)
             continue
         # copy_or_rename_transcript changes item.sub of module
         try:

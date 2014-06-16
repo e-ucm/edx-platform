@@ -3,10 +3,8 @@
     <div id="example">
       <div
         id="video_id"
-        class="video closed"
+        class="video"
         data-show-captions="true"
-        data-save-state-url="/save_user_state"
-        data-speed="1.5"
         data-start=""
         data-end=""
         data-caption-asset-path="/static/subs/"
@@ -23,14 +21,12 @@
 
         <div class="tc-wrapper">
           <article class="video-wrapper">
-            <span tabindex="0" class="spinner" aria-hidden="false" aria-label="${_('Loading video player')}"></span>
-            <span tabindex="-1" class="btn-play is-hidden" aria-hidden="true" aria-label="${_('Play video')}"></span>
             <div class="video-player-pre"></div>
             <section class="video-player">
               <div id="id"></div>
             </section>
             <div class="video-player-post"></div>
-            <section class="video-controls is-hidden">
+            <section class="video-controls">
               <div class="slider"></div>
               <div>
                 <ul class="vcr">

@@ -6,8 +6,7 @@ from uuid import uuid4
 from pytz import UTC
 
 from xmodule.modulestore import Location
-from xmodule.x_module import prefer_xmodules
-from xblock.core import XBlock
+from xmodule.x_module import XModuleDescriptor
 
 
 class Dummy(object):
@@ -55,6 +54,8 @@ class CourseFactory(XModuleFactory):
 
         # Write the data to the mongo datastore
         new_course = store.create_xmodule(location, metadata=kwargs.get('metadata', None))
+
+        new_course.start = datetime.datetime.now(UTC).replace(microsecond=0)
 
         # The rest of kwargs become attributes on the course:
         for k, v in kwargs.iteritems():
@@ -145,7 +146,7 @@ class ItemFactory(XModuleFactory):
 
         if 'boilerplate' in kwargs:
             template_id = kwargs.pop('boilerplate')
-            clz = XBlock.load_class(category, select=prefer_xmodules)
+            clz = XModuleDescriptor.load_class(category)
             template = clz.get_template(template_id)
             assert template is not None
             metadata.update(template.get('metadata', {}))

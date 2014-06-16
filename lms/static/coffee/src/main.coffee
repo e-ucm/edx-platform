@@ -6,7 +6,7 @@ $ ->
     dataType: 'json'
 
   window.onTouchBasedDevice = ->
-    navigator.userAgent.match /iPhone|iPod|iPad|Android/i
+    navigator.userAgent.match /iPhone|iPod|iPad/i
 
   $('body').addClass 'touch-based-device' if onTouchBasedDevice()
 

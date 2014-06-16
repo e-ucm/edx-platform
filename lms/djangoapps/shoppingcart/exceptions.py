@@ -26,11 +26,3 @@ class AlreadyEnrolledInCourseException(InvalidCartItem):
 
 class CourseDoesNotExistException(InvalidCartItem):
     pass
-
-
-class ReportException(Exception):
-    pass
-
-
-class ReportTypeDoesNotExistException(ReportException):
-    pass

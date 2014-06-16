@@ -57,14 +57,6 @@ class AjaxEnabledTestClient(Client):
         """
         return self.get(path, data or {}, follow, HTTP_ACCEPT="application/json", **extra)
 
-    def get_fragment(self, path, data=None, follow=False, **extra):
-        """
-        Convenience method for client.get which sets the accept type to application/x-fragment+json
-        """
-        return self.get(path, data or {}, follow, HTTP_ACCEPT="application/x-fragment+json", **extra)
-
-
-
 @override_settings(MODULESTORE=TEST_MODULESTORE)
 class CourseTestCase(ModuleStoreTestCase):
     def setUp(self):
@@ -79,7 +71,7 @@ class CourseTestCase(ModuleStoreTestCase):
         email = 'test+courses@edx.org'
         password = 'foo'
 
-        # Create the user so we can log them in.
+        # Create the use so we can log them in.
         self.user = User.objects.create_user(uname, email, password)
 
         # Note that we do not actually need to do anything
@@ -119,7 +111,7 @@ class CourseTestCase(ModuleStoreTestCase):
         client = Client()
         client.login(username=uname, password=password)
         return client, nonstaff
-
+    
     def populateCourse(self):
         """
         Add 2 chapters, 4 sections, 8 verticals, 16 problems to self.course (branching 2)

@@ -4,9 +4,7 @@
 from __future__ import absolute_import
 
 from lettuce import world, step
-from lettuce.django import django_url
 from django.contrib.auth.models import User
-from django.core.urlresolvers import reverse
 from student.models import CourseEnrollment
 from xmodule.modulestore import Location
 from xmodule.modulestore.django import modulestore
@@ -29,24 +27,18 @@ def create_course(_step, course):
     # Create the course
     # We always use the same org and display name,
     # but vary the course identifier (e.g. 600x or 191x)
-    world.scenario_dict['COURSE'] = world.CourseFactory.create(
-        org='edx',
-        number=course,
-        display_name='Test Course'
-    )
+    world.scenario_dict['COURSE'] = world.CourseFactory.create(org='edx',
+                                        number=course,
+                                        display_name='Test Course')
 
-    # Add a chapter to the course to contain problems
-    world.scenario_dict['CHAPTER'] = world.ItemFactory.create(
-        parent_location=world.scenario_dict['COURSE'].location,
-        category='chapter',
-        display_name='Test Chapter',
-    )
+    # Add a section to the course to contain problems
+    world.scenario_dict['SECTION'] = world.ItemFactory.create(parent_location=world.scenario_dict['COURSE'].location,
+                                       display_name='Test Section')
 
-    world.scenario_dict['SECTION'] = world.ItemFactory.create(
-        parent_location=world.scenario_dict['CHAPTER'].location,
+    world.ItemFactory.create(
+        parent_location=world.scenario_dict['SECTION'].location,
         category='sequential',
-        display_name='Test Section',
-    )
+        display_name='Test Section')
 
 
 @step(u'I am registered for the course "([^"]*)"$')
@@ -82,32 +74,23 @@ def go_into_course(step):
 
 def course_id(course_num):
     return "%s/%s/%s" % (world.scenario_dict['COURSE'].org, course_num,
-                         world.scenario_dict['COURSE'].url_name)
+                         world.scenario_dict['COURSE'].display_name.replace(" ", "_"))
 
 
 def course_location(course_num):
-    return world.scenario_dict['COURSE'].location._replace(course=course_num)
+    return Location(loc_or_tag="i4x",
+                    org=world.scenario_dict['COURSE'].org,
+                    course=course_num,
+                    category='course',
+                    name=world.scenario_dict['COURSE'].display_name.replace(" ", "_"))
 
 
 def section_location(course_num):
-    return world.scenario_dict['SECTION'].location._replace(course=course_num)
-
-
-def visit_scenario_item(item_key):
-    """
-    Go to the courseware page containing the item stored in `world.scenario_dict`
-    under the key `item_key`
-    """
-
-    url = django_url(reverse(
-        'jump_to',
-        kwargs={
-            'course_id': world.scenario_dict['COURSE'].id,
-            'location': str(world.scenario_dict[item_key].location),
-        }
-    ))
-
-    world.browser.visit(url)
+    return Location(loc_or_tag="i4x",
+                    org=world.scenario_dict['COURSE'].org,
+                    course=course_num,
+                    category='sequential',
+                    name=world.scenario_dict['SECTION'].display_name.replace(" ", "_"))
 
 
 def get_courses():

@@ -15,14 +15,9 @@ def notes(request, course_id):
         raise Http404
 
     notes = Note.objects.filter(course_id=course_id, user=request.user).order_by('-created', 'uri')
-
-    student = request.user
-    storage = course.annotation_storage_url
     context = {
         'course': course,
-        'notes': notes,
-        'student': student,
-        'storage': storage
+        'notes': notes
     }
 
     return render_to_response('notes.html', context)

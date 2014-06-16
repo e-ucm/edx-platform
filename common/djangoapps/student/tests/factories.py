@@ -6,8 +6,15 @@ from student.models import (User, UserProfile, Registration,
 from course_modes.models import CourseMode
 from django.contrib.auth.models import Group, AnonymousUser
 from datetime import datetime
-import factory
-from factory.django import DjangoModelFactory
+from factory import (
+    DjangoModelFactory,
+    Factory,
+    LazyAttribute,
+    post_generation,
+    PostGenerationMethodCall,
+    Sequence,
+    SubFactory,
+)
 from uuid import uuid4
 from pytz import UTC
 
@@ -19,7 +26,8 @@ class GroupFactory(DjangoModelFactory):
     FACTORY_FOR = Group
     FACTORY_DJANGO_GET_OR_CREATE = ('name', )
 
-    name = factory.Sequence(u'group{0}'.format)
+    name = Sequence(u'group{0}'.format)
+
 
 
 class UserStandingFactory(DjangoModelFactory):
@@ -35,7 +43,7 @@ class UserProfileFactory(DjangoModelFactory):
     FACTORY_DJANGO_GET_OR_CREATE = ('user', )
 
     user = None
-    name = factory.LazyAttribute(u'{0.user.first_name} {0.user.last_name}'.format)
+    name = LazyAttribute(u'{0.user.first_name} {0.user.last_name}'.format)
     level_of_education = None
     gender = u'm'
     mailing_address = None
@@ -64,10 +72,11 @@ class UserFactory(DjangoModelFactory):
     FACTORY_FOR = User
     FACTORY_DJANGO_GET_OR_CREATE = ('email', 'username')
 
-    username = factory.Sequence(u'robot{0}'.format)
-    email = factory.Sequence(u'robot+test+{0}@edx.org'.format)
-    password = factory.PostGenerationMethodCall('set_password', 'test')
-    first_name = factory.Sequence(u'Robot{0}'.format)
+    username = Sequence(u'robot{0}'.format)
+    email = Sequence(u'robot+test+{0}@edx.org'.format)
+    password = PostGenerationMethodCall('set_password',
+                                        'test')
+    first_name = Sequence(u'Robot{0}'.format)
     last_name = 'Test'
     is_staff = False
     is_active = True
@@ -75,7 +84,7 @@ class UserFactory(DjangoModelFactory):
     last_login = datetime(2012, 1, 1, tzinfo=UTC)
     date_joined = datetime(2011, 1, 1, tzinfo=UTC)
 
-    @factory.post_generation
+    @post_generation
     def profile(obj, create, extracted, **kwargs):  # pylint: disable=unused-argument, no-self-argument
         if create:
             obj.save()
@@ -85,7 +94,7 @@ class UserFactory(DjangoModelFactory):
         else:
             return None
 
-    @factory.post_generation
+    @post_generation
     def groups(self, create, extracted, **kwargs):
         if extracted is None:
             return
@@ -97,7 +106,7 @@ class UserFactory(DjangoModelFactory):
             self.groups.add(GroupFactory.simple_generate(create, name=group_name))
 
 
-class AnonymousUserFactory(factory.Factory):
+class AnonymousUserFactory(Factory):
     FACTORY_FOR = AnonymousUser
 
 
@@ -108,7 +117,7 @@ class AdminFactory(UserFactory):
 class CourseEnrollmentFactory(DjangoModelFactory):
     FACTORY_FOR = CourseEnrollment
 
-    user = factory.SubFactory(UserFactory)
+    user = SubFactory(UserFactory)
     course_id = u'edX/toy/2012_Fall'
 
 
@@ -128,6 +137,6 @@ class PendingEmailChangeFactory(DjangoModelFactory):
     """
     FACTORY_FOR = PendingEmailChange
 
-    user = factory.SubFactory(UserFactory)
-    new_email = factory.Sequence(u'new+email+{0}@edx.org'.format)
-    activation_key = factory.Sequence(u'{:0<30d}'.format)
+    user = SubFactory(UserFactory)
+    new_email = Sequence(u'new+email+{0}@edx.org'.format)
+    activation_key = Sequence(u'{:0<30d}'.format)

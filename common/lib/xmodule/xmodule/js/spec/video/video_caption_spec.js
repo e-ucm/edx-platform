@@ -1,20 +1,26 @@
-(function (undefined) {
+(function () {
     describe('VideoCaption', function () {
-        var state, oldOTBD;
+        var state, videoPlayer, videoCaption, videoSpeedControl, oldOTBD;
+
+        function initialize() {
+            loadFixtures('video_all.html');
+            state = new Video('#example');
+            videoPlayer = state.videoPlayer;
+            videoCaption = state.videoCaption;
+            videoSpeedControl = state.videoSpeedControl;
+            videoControl = state.videoControl;
+            $.fn.scrollTo.reset();
+        }
 
         beforeEach(function () {
             oldOTBD = window.onTouchBasedDevice;
             window.onTouchBasedDevice = jasmine.createSpy('onTouchBasedDevice')
-                .andReturn(null);
-
-            state = jasmine.initializePlayer();
-
-            videoControl = state.videoControl;
-
-            $.fn.scrollTo.reset();
+                .andReturn(false);
+            initialize();
         });
 
         afterEach(function () {
+            YT.Player = undefined;
             $('.subtitles').remove();
 
             // `source` tags should be removed to avoid memory leak bug that we
@@ -29,12 +35,7 @@
             describe('always', function () {
                 beforeEach(function () {
                     spyOn($, 'ajaxWithPrefix').andCallThrough();
-
-                    state = jasmine.initializePlayer();
-
-                    videoControl = state.videoControl;
-
-                    $.fn.scrollTo.reset();
+                    initialize();
                 });
 
                 it('create the caption element', function () {
@@ -56,7 +57,7 @@
 
                 it('fetch the caption', function () {
                     waitsFor(function () {
-                        if (state.videoCaption.loaded === true) {
+                        if (videoCaption.loaded === true) {
                             return true;
                         }
 
@@ -65,7 +66,7 @@
 
                     runs(function () {
                         expect($.ajaxWithPrefix).toHaveBeenCalledWith({
-                            url: state.videoCaption.captionURL(),
+                            url: videoCaption.captionURL(),
                             notifyOnError: false,
                             success: jasmine.any(Function),
                             error: jasmine.any(Function)
@@ -75,37 +76,37 @@
 
                 it('bind window resize event', function () {
                     expect($(window)).toHandleWith(
-                        'resize', state.videoCaption.resize
+                        'resize', videoCaption.resize
                     );
                 });
 
                 it('bind the hide caption button', function () {
                     expect($('.hide-subtitles')).toHandleWith(
-                        'click', state.videoCaption.toggle
+                        'click', videoCaption.toggle
                     );
                 });
 
                 it('bind the mouse movement', function () {
                     expect($('.subtitles')).toHandleWith(
-                        'mouseover', state.videoCaption.onMouseEnter
+                        'mouseover', videoCaption.onMouseEnter
                     );
                     expect($('.subtitles')).toHandleWith(
-                        'mouseout', state.videoCaption.onMouseLeave
+                        'mouseout', videoCaption.onMouseLeave
                     );
                     expect($('.subtitles')).toHandleWith(
-                        'mousemove', state.videoCaption.onMovement
+                        'mousemove', videoCaption.onMovement
                     );
                     expect($('.subtitles')).toHandleWith(
-                        'mousewheel', state.videoCaption.onMovement
+                        'mousewheel', videoCaption.onMovement
                     );
                     expect($('.subtitles')).toHandleWith(
-                        'DOMMouseScroll', state.videoCaption.onMovement
+                        'DOMMouseScroll', videoCaption.onMovement
                     );
                 });
 
                 it('bind the scroll', function () {
                     expect($('.subtitles'))
-                        .toHandleWith('scroll', state.videoCaption.autoShowCaptions);
+                        .toHandleWith('scroll', videoCaption.autoShowCaptions);
                     expect($('.subtitles'))
                         .toHandleWith('scroll', videoControl.showControls);
                 });
@@ -113,11 +114,7 @@
 
             describe('when on a non touch-based device', function () {
                 beforeEach(function () {
-                    state = jasmine.initializePlayer();
-
-                    videoControl = state.videoControl;
-
-                    $.fn.scrollTo.reset();
+                    initialize();
                 });
 
                 it('render the caption', function () {
@@ -148,43 +145,38 @@
                         function (index, link) {
 
                         expect($(link)).toHandleWith(
-                            'mouseover', state.videoCaption.captionMouseOverOut
+                            'mouseover', videoCaption.captionMouseOverOut
                         );
                         expect($(link)).toHandleWith(
-                            'mouseout', state.videoCaption.captionMouseOverOut
+                            'mouseout', videoCaption.captionMouseOverOut
                         );
                         expect($(link)).toHandleWith(
-                            'mousedown', state.videoCaption.captionMouseDown
+                            'mousedown', videoCaption.captionMouseDown
                         );
                         expect($(link)).toHandleWith(
-                            'click', state.videoCaption.captionClick
+                            'click', videoCaption.captionClick
                         );
                         expect($(link)).toHandleWith(
-                            'focus', state.videoCaption.captionFocus
+                            'focus', videoCaption.captionFocus
                         );
                         expect($(link)).toHandleWith(
-                            'blur', state.videoCaption.captionBlur
+                            'blur', videoCaption.captionBlur
                         );
                         expect($(link)).toHandleWith(
-                            'keydown', state.videoCaption.captionKeyDown
+                            'keydown', videoCaption.captionKeyDown
                         );
                     });
                 });
 
                 it('set rendered to true', function () {
-                    expect(state.videoCaption.rendered).toBeTruthy();
+                    expect(videoCaption.rendered).toBeTruthy();
                 });
             });
 
             describe('when on a touch-based device', function () {
                 beforeEach(function () {
-                    window.onTouchBasedDevice.andReturn(['iPad']);
-
-                    state = jasmine.initializePlayer();
-
-                    videoControl = state.videoControl;
-
-                    $.fn.scrollTo.reset();
+                    window.onTouchBasedDevice.andReturn(true);
+                    initialize();
                 });
 
                 it('show explaination message', function () {
@@ -195,7 +187,7 @@
                 });
 
                 it('does not set rendered to true', function () {
-                    expect(state.videoCaption.rendered).toBeFalsy();
+                    expect(videoCaption.rendered).toBeFalsy();
                 });
             });
 
@@ -207,41 +199,58 @@
                     $('#example').find('#video_id').data('sub', '');
 
                     state = new Video('#example');
+                    videoCaption = state.videoCaption;
                 });
 
                 it('captions panel is not shown', function () {
-                    expect(state.videoCaption.hideSubtitlesEl).toBeHidden();
+                    expect(videoCaption.hideSubtitlesEl).toBeHidden();
                 });
             });
         });
 
         describe('mouse movement', function () {
+            // We will store default window.setTimeout() function here.
+            var oldSetTimeout = null;
+
             beforeEach(function () {
-                jasmine.Clock.useMock();
+                // Store original window.setTimeout() function. If we do not do
+                // this, then all other tests that rely on code which uses
+                // window.setTimeout() function might (and probably will) fail.
+                oldSetTimeout = window.setTimeout;
+                // Redefine window.setTimeout() function as a spy.
+                window.setTimeout = jasmine.createSpy().andCallFake(
+                    function (callback, timeout) {
+                        return 5;
+                    }
+                );
+                window.setTimeout.andReturn(100);
                 spyOn(window, 'clearTimeout');
+            });
+
+            afterEach(function () {
+                // Reset the default window.setTimeout() function. If we do not
+                // do this, then all other tests that rely on code which uses
+                // window.setTimeout() function might (and probably will) fail.
+                window.setTimeout = oldSetTimeout;
             });
 
             describe('when cursor is outside of the caption box', function () {
                 beforeEach(function () {
                     $(window).trigger(jQuery.Event('mousemove'));
-                    jasmine.Clock.tick(state.config.captionsFreezeTime);
                 });
 
                 it('does not set freezing timeout', function () {
-                    expect(state.videoCaption.frozen).toBeFalsy();
+                    expect(videoCaption.frozen).toBeFalsy();
                 });
             });
 
             describe('when cursor is in the caption box', function () {
                 beforeEach(function () {
-                    spyOn(state.videoCaption, 'onMouseLeave');
                     $('.subtitles').trigger(jQuery.Event('mouseenter'));
-                    jasmine.Clock.tick(state.config.captionsFreezeTime);
                 });
 
                 it('set the freezing timeout', function () {
-                    expect(state.videoCaption.frozen).not.toBeFalsy();
-                    expect(state.videoCaption.onMouseLeave).toHaveBeenCalled();
+                    expect(videoCaption.frozen).toEqual(100);
                 });
 
                 describe('when the cursor is moving', function () {
@@ -250,7 +259,7 @@
                     });
 
                     it('reset the freezing timeout', function () {
-                        expect(window.clearTimeout).toHaveBeenCalled();
+                        expect(window.clearTimeout).toHaveBeenCalledWith(100);
                     });
                 });
 
@@ -260,7 +269,7 @@
                     });
 
                     it('reset the freezing timeout', function () {
-                        expect(window.clearTimeout).toHaveBeenCalled();
+                        expect(window.clearTimeout).toHaveBeenCalledWith(100);
                     });
                 });
             });
@@ -270,7 +279,7 @@
                 function () {
 
                 beforeEach(function () {
-                    state.videoCaption.frozen = 100;
+                    videoCaption.frozen = 100;
                     $.fn.scrollTo.reset();
                 });
 
@@ -284,13 +293,13 @@
                     });
 
                     it('unfreeze the caption', function () {
-                        expect(state.videoCaption.frozen).toBeNull();
+                        expect(videoCaption.frozen).toBeNull();
                     });
                 });
 
                 describe('when the player is playing', function () {
                     beforeEach(function () {
-                        state.videoCaption.playing = true;
+                        videoCaption.playing = true;
                         $('.subtitles li[data-index]:first')
                             .addClass('current');
                         $('.subtitles').trigger(jQuery.Event('mouseout'));
@@ -303,7 +312,7 @@
 
                 describe('when the player is not playing', function () {
                     beforeEach(function () {
-                        state.videoCaption.playing = false;
+                        videoCaption.playing = false;
                         $('.subtitles').trigger(jQuery.Event('mouseout'));
                     });
 
@@ -316,27 +325,21 @@
 
         describe('search', function () {
             it('return a correct caption index', function () {
-                expect(state.videoCaption.search(0)).toEqual(-1);
-                expect(state.videoCaption.search(3120)).toEqual(1);
-                expect(state.videoCaption.search(6270)).toEqual(2);
-                expect(state.videoCaption.search(8490)).toEqual(2);
-                expect(state.videoCaption.search(21620)).toEqual(4);
-                expect(state.videoCaption.search(24920)).toEqual(5);
+                expect(videoCaption.search(0)).toEqual(-1);
+                expect(videoCaption.search(3120)).toEqual(1);
+                expect(videoCaption.search(6270)).toEqual(2);
+                expect(videoCaption.search(8490)).toEqual(2);
+                expect(videoCaption.search(21620)).toEqual(4);
+                expect(videoCaption.search(24920)).toEqual(5);
             });
         });
 
         describe('play', function () {
             describe('when the caption was not rendered', function () {
                 beforeEach(function () {
-                    window.onTouchBasedDevice.andReturn(['iPad']);
-
-                    state = jasmine.initializePlayer();
-
-                    videoControl = state.videoControl;
-
-                    $.fn.scrollTo.reset();
-
-                    state.videoCaption.play();
+                    window.onTouchBasedDevice.andReturn(true);
+                    initialize();
+                    videoCaption.play();
                 });
 
                 it('render the caption', function () {
@@ -365,78 +368,78 @@
                         function (index, link) {
 
                         expect($(link)).toHandleWith(
-                            'mouseover', state.videoCaption.captionMouseOverOut
+                            'mouseover', videoCaption.captionMouseOverOut
                         );
                         expect($(link)).toHandleWith(
-                            'mouseout', state.videoCaption.captionMouseOverOut
+                            'mouseout', videoCaption.captionMouseOverOut
                         );
                         expect($(link)).toHandleWith(
-                            'mousedown', state.videoCaption.captionMouseDown
+                            'mousedown', videoCaption.captionMouseDown
                         );
                         expect($(link)).toHandleWith(
-                            'click', state.videoCaption.captionClick
+                            'click', videoCaption.captionClick
                         );
                         expect($(link)).toHandleWith(
-                            'focus', state.videoCaption.captionFocus
+                            'focus', videoCaption.captionFocus
                         );
                         expect($(link)).toHandleWith(
-                            'blur', state.videoCaption.captionBlur
+                            'blur', videoCaption.captionBlur
                         );
                         expect($(link)).toHandleWith(
-                            'keydown', state.videoCaption.captionKeyDown
+                            'keydown', videoCaption.captionKeyDown
                         );
                     });
                 });
 
                 it('set rendered to true', function () {
-                    expect(state.videoCaption.rendered).toBeTruthy();
+                    expect(videoCaption.rendered).toBeTruthy();
                 });
 
                 it('set playing to true', function () {
-                    expect(state.videoCaption.playing).toBeTruthy();
+                    expect(videoCaption.playing).toBeTruthy();
                 });
             });
         });
 
         describe('pause', function () {
             beforeEach(function () {
-                state.videoCaption.playing = true;
-                state.videoCaption.pause();
+                videoCaption.playing = true;
+                videoCaption.pause();
             });
 
             it('set playing to false', function () {
-                expect(state.videoCaption.playing).toBeFalsy();
+                expect(videoCaption.playing).toBeFalsy();
             });
         });
 
         describe('updatePlayTime', function () {
             describe('when the video speed is 1.0x', function () {
                 beforeEach(function () {
-                    state.videoSpeedControl.currentSpeed = '1.0';
-                    state.videoCaption.updatePlayTime(25.000);
+                    videoSpeedControl.currentSpeed = '1.0';
+                    videoCaption.updatePlayTime(25.000);
                 });
 
                 it('search the caption based on time', function () {
-                    expect(state.videoCaption.currentIndex).toEqual(5);
+                    expect(videoCaption.currentIndex).toEqual(5);
                 });
             });
 
             describe('when the video speed is not 1.0x', function () {
                 beforeEach(function () {
-                    state.videoSpeedControl.currentSpeed = '0.75';
-                    state.videoCaption.updatePlayTime(25.000);
+                    videoSpeedControl.currentSpeed = '0.75';
+                    videoCaption.updatePlayTime(25.000);
                 });
 
                 it('search the caption based on 1.0x speed', function () {
-                    expect(state.videoCaption.currentIndex).toEqual(5);
+                    expect(videoCaption.currentIndex).toEqual(5);
                 });
             });
 
             describe('when the index is not the same', function () {
                 beforeEach(function () {
-                    state.videoCaption.currentIndex = 1;
+                    videoCaption.currentIndex = 1;
                     $('.subtitles li[data-index=5]').addClass('current');
-                    state.videoCaption.updatePlayTime(25.000);
+                    videoCaption.updatePlayTime(25.000);
                 });
 
                 it('deactivate the previous caption', function () {
@@ -450,7 +453,7 @@
                 });
 
                 it('save new index', function () {
-                    expect(state.videoCaption.currentIndex).toEqual(5);
+                    expect(videoCaption.currentIndex).toEqual(5);
                 });
 
                 // Disabled 11/25/13 due to flakiness in master
@@ -461,9 +464,9 @@
 
             describe('when the index is the same', function () {
                 beforeEach(function () {
-                    state.videoCaption.currentIndex = 1;
+                    videoCaption.currentIndex = 1;
                     $('.subtitles li[data-index=3]').addClass('current');
-                    state.videoCaption.updatePlayTime(15.000);
+                    videoCaption.updatePlayTime(15.000);
                 });
 
                 it('does not change current subtitle', function () {
@@ -475,14 +478,9 @@
 
         describe('resize', function () {
             beforeEach(function () {
-                state = jasmine.initializePlayer();
-
-                videoControl = state.videoControl;
-
-                $.fn.scrollTo.reset();
-
+                initialize();
                 $('.subtitles li[data-index=1]').addClass('current');
-                state.videoCaption.resize();
+                videoCaption.resize();
             });
 
             describe('set the height of caption container', function () {
@@ -502,7 +500,7 @@
                         controlHeight, shouldBeHeight;
 
                     state.captionsHidden = true;
-                    state.videoCaption.setSubtitlesHeight();
+                    videoCaption.setSubtitlesHeight();
 
                     realHeight = parseInt(
                         $('.subtitles').css('maxHeight'), 10
@@ -528,9 +526,9 @@
                     $('.subtitles .spacing:last').css('height'), 10
                 ));
 
-                expect(firstSpacing - state.videoCaption.topSpacingHeight())
+                expect(firstSpacing - videoCaption.topSpacingHeight())
                     .toBeLessThan(1);
-                expect(lastSpacing - state.videoCaption.bottomSpacingHeight())
+                expect(lastSpacing - videoCaption.bottomSpacingHeight())
                     .toBeLessThan(1);
             });
 
@@ -542,18 +540,14 @@
         // Disabled 11/25/13 due to flakiness in master
         xdescribe('scrollCaption', function () {
             beforeEach(function () {
-                state = jasmine.initializePlayer();
-
-                videoControl = state.videoControl;
-
-                $.fn.scrollTo.reset();
+                initialize();
             });
 
             describe('when frozen', function () {
                 beforeEach(function () {
-                    state.videoCaption.frozen = true;
+                    videoCaption.frozen = true;
                     $('.subtitles li[data-index=1]').addClass('current');
-                    state.videoCaption.scrollCaption();
+                    videoCaption.scrollCaption();
                 });
 
                 it('does not scroll the caption', function () {
@@ -563,12 +557,12 @@
 
             describe('when not frozen', function () {
                 beforeEach(function () {
-                    state.videoCaption.frozen = false;
+                    videoCaption.frozen = false;
                 });
 
                 describe('when there is no current caption', function () {
                     beforeEach(function () {
-                        state.videoCaption.scrollCaption();
+                        videoCaption.scrollCaption();
                     });
 
                     it('does not scroll the caption', function () {
@@ -579,7 +573,7 @@
                 describe('when there is a current caption', function () {
                     beforeEach(function () {
                         $('.subtitles li[data-index=1]').addClass('current');
-                        state.videoCaption.scrollCaption();
+                        videoCaption.scrollCaption();
                     });
 
                     it('scroll to current caption', function () {
@@ -593,29 +587,24 @@
         xdescribe('seekPlayer', function () {
             describe('when the video speed is 1.0x', function () {
                 beforeEach(function () {
-                    state.videoSpeedControl.currentSpeed = '1.0';
+                    videoSpeedControl.currentSpeed = '1.0';
                     $('.subtitles li[data-start="14910"]').trigger('click');
                 });
 
                 it('trigger seek event with the correct time', function () {
-                    expect(state.videoPlayer.currentTime).toEqual(14.91);
+                    expect(videoPlayer.currentTime).toEqual(14.91);
                 });
             });
 
             describe('when the video speed is not 1.0x', function () {
                 beforeEach(function () {
-                    state = jasmine.initializePlayer();
-
-                    videoControl = state.videoControl;
-
-                    $.fn.scrollTo.reset();
-
-                    state.videoSpeedControl.currentSpeed = '0.75';
+                    initialize();
+                    videoSpeedControl.currentSpeed = '0.75';
                     $('.subtitles li[data-start="14910"]').trigger('click');
                 });
 
                 it('trigger seek event with the correct time', function () {
-                    expect(state.videoPlayer.currentTime).toEqual(14.91);
+                    expect(videoPlayer.currentTime).toEqual(14.91);
                 });
             });
 
@@ -623,46 +612,36 @@
                 function () {
 
                 beforeEach(function () {
-                    state = jasmine.initializePlayer();
-
-                    videoControl = state.videoControl;
-
-                    $.fn.scrollTo.reset();
-
-                    state.videoSpeedControl.currentSpeed = '0.75';
+                    initialize();
+                    videoSpeedControl.currentSpeed = '0.75';
                     state.currentPlayerMode = 'flash';
                     $('.subtitles li[data-start="14910"]').trigger('click');
                 });
 
                 it('trigger seek event with the correct time', function () {
-                    expect(state.videoPlayer.currentTime).toEqual(15);
+                    expect(videoPlayer.currentTime).toEqual(15);
                 });
             });
         });
 
         describe('toggle', function () {
             beforeEach(function () {
-                state = jasmine.initializePlayer();
-
-                videoControl = state.videoControl;
-
-                $.fn.scrollTo.reset();
-
-                spyOn(state.videoPlayer, 'log');
+                initialize();
+                spyOn(videoPlayer, 'log');
                 $('.subtitles li[data-index=1]').addClass('current');
             });
 
             describe('when the caption is visible', function () {
                 beforeEach(function () {
                     state.el.removeClass('closed');
-                    state.videoCaption.toggle(jQuery.Event('click'));
+                    videoCaption.toggle(jQuery.Event('click'));
                 });
 
                 it('log the hide_transcript event', function () {
-                    expect(state.videoPlayer.log).toHaveBeenCalledWith(
+                    expect(videoPlayer.log).toHaveBeenCalledWith(
                         'hide_transcript',
                         {
-                            currentTime: state.videoPlayer.currentTime
+                            currentTime: videoPlayer.currentTime
                         }
                     );
                 });
@@ -680,16 +659,16 @@
             describe('when the caption is hidden', function () {
                 beforeEach(function () {
                     state.el.addClass('closed');
-                    state.videoCaption.toggle(jQuery.Event('click'));
+                    videoCaption.toggle(jQuery.Event('click'));
 
                     jasmine.Clock.useMock();
                 });
 
                 it('log the show_transcript event', function () {
-                    expect(state.videoPlayer.log).toHaveBeenCalledWith(
+                    expect(videoPlayer.log).toHaveBeenCalledWith(
                         'show_transcript',
                         {
-                            currentTime: state.videoPlayer.currentTime
+                            currentTime: videoPlayer.currentTime
                         }
                     );
                 });
@@ -722,16 +701,12 @@
 
         describe('caption accessibility', function () {
             beforeEach(function () {
-                state = jasmine.initializePlayer();
-
-                videoControl = state.videoControl;
-
-                $.fn.scrollTo.reset();
+                initialize();
             });
 
             describe('when getting focus through TAB key', function () {
                 beforeEach(function () {
-                    state.videoCaption.isMouseFocus = false;
+                    videoCaption.isMouseFocus = false;
                     $('.subtitles li[data-index=0]').trigger(
                         jQuery.Event('focus')
                     );
@@ -743,7 +718,7 @@
                 });
 
                 it('has automatic scrolling disabled', function () {
-                    expect(state.videoCaption.autoScrolling).toBe(false);
+                    expect(videoCaption.autoScrolling).toBe(false);
                 });
             });
 
@@ -760,7 +735,7 @@
                 });
 
                 it('has automatic scrolling enabled', function () {
-                    expect(state.videoCaption.autoScrolling).toBe(true);
+                    expect(videoCaption.autoScrolling).toBe(true);
                 });
             });
 
@@ -770,7 +745,7 @@
                 function () {
 
                 beforeEach(function () {
-                    state.videoCaption.isMouseFocus = false;
+                    videoCaption.isMouseFocus = false;
                     $('.subtitles li[data-index=0]')
                         .trigger(jQuery.Event('focus'));
                     $('.subtitles li[data-index=0]')
@@ -783,7 +758,7 @@
                 });
 
                 it('has automatic scrolling enabled', function () {
-                    expect(state.videoCaption.autoScrolling).toBe(true);
+                    expect(videoCaption.autoScrolling).toBe(true);
                 });
             });
 
@@ -798,12 +773,12 @@
                     subDataLiIdx__0 = $('.subtitles li[data-index=0]');
                     subDataLiIdx__1 = $('.subtitles li[data-index=1]');
 
-                    state.videoCaption.isMouseFocus = false;
+                    videoCaption.isMouseFocus = false;
 
                     subDataLiIdx__0.trigger(jQuery.Event('focus'));
                     subDataLiIdx__0.trigger(jQuery.Event('blur'));
 
-                    state.videoCaption.isMouseFocus = true;
+                    videoCaption.isMouseFocus = true;
 
                     subDataLiIdx__1.trigger(jQuery.Event('mousedown'));
                 });
@@ -817,7 +792,7 @@
                 });
 
                 it('has automatic scrolling enabled', function () {
-                    expect(state.videoCaption.autoScrolling).toBe(true);
+                    expect(videoCaption.autoScrolling).toBe(true);
                 });
             });
         });

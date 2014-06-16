@@ -21,35 +21,33 @@ def run_tests(system, report_dir, test_id=nil, stop_on_failure=true)
     # If no test id is provided, we need to limit the test runner
     # to the Djangoapps we want to test.  Otherwise, it will
     # run tests on all installed packages.
-
-    # We need to use $DIR/*, rather than just $DIR so that
-    # django-nose will import them early in the test process,
-    # thereby making sure that we load any django models that are
-    # only defined in test files.
-
-    default_test_id = "#{system}/djangoapps/* common/djangoapps/*"
-
-    if system == :lms || system == :cms
-        default_test_id += " #{system}/lib/*"
-    end
-
     if test_id.nil?
-        test_id = default_test_id
+        test_id = "#{system}/djangoapps common/djangoapps"
 
     # Handle "--failed" as a special case: we want to re-run only
     # the tests that failed within our Django apps
     elsif test_id == '--failed'
-        test_id = "#{default_test_id} --failed"
+        test_id = "#{system}/djangoapps common/djangoapps --failed"
     end
 
     cmd = django_admin(system, :test, 'test', test_id)
-    test_sh(system, run_under_coverage(cmd, system))
+    test_sh(run_under_coverage(cmd, system))
+end
+
+# Run documentation tests
+desc "Run documentation tests"
+task :test_docs do
+    # Be sure that sphinx can build docs w/o exceptions.
+    test_message = "If test fails, you shoud run '%s' and look at whole output and fix exceptions.
+(You shouldn't fix rst warnings and errors for this to pass, just get rid of exceptions.)"
+    puts (test_message  % ["rake doc[docs,verbose]"]).colorize( :light_green )
+    test_sh('rake builddocs')
 end
 
 task :clean_test_files do
     desc "Clean fixture files used by tests and .pyc files"
     sh("git clean -fqdx test_root/logs test_root/data test_root/staticfiles test_root/uploads")
-    sh("find . -type f -name \"*.pyc\" -delete")
+    sh("find . -type f -name *.pyc -delete")
 end
 
 task :clean_reports_dir => REPORT_DIR do
@@ -79,15 +77,7 @@ TEST_TASK_DIRS = []
     # messing with static files.
     task "fasttest_#{system}", [:test_id] => [test_id_dir, report_dir, :clean_reports_dir] do |t, args|
         args.with_defaults(:test_id => nil)
-
-
-
-        begin
-            run_tests(system, report_dir, args.test_id)
-        ensure
-            Rake::Task[:'test:clean_mongo'].reenable
-            Rake::Task[:'test:clean_mongo'].invoke
-        end
+        run_tests(system, report_dir, args.test_id)
     end
 
     task :fasttest => "fasttest_#{system}"
@@ -105,18 +95,13 @@ Dir["common/lib/*"].select{|lib| File.directory?(lib)}.each do |lib|
 
     desc "Run tests for common lib #{lib}"
     task "test_#{lib}", [:test_id] => [
-        test_id_dir, report_dir, :clean_test_files, :clean_reports_dir, :install_prereqs
+        test_id_dir, report_dir, :clean_test_files,
+        :clean_reports_dir, :install_prereqs
     ] do |t, args|
-
         args.with_defaults(:test_id => lib)
         ENV['NOSE_XUNIT_FILE'] = File.join(report_dir, "nosetests.xml")
         cmd = "nosetests --id-file=#{test_ids} #{args.test_id}"
-        begin
-            test_sh(lib, run_under_coverage(cmd, lib))
-        ensure
-            Rake::Task[:'test:clean_mongo'].reenable
-            Rake::Task[:'test:clean_mongo'].invoke
-        end
+        test_sh(run_under_coverage(cmd, lib))
     end
     TEST_TASK_DIRS << lib
 
@@ -141,12 +126,10 @@ end
 namespace :test do
     desc "Run all python tests"
     task :python, [:test_id]
-
-    desc "Drop Mongo databases created by the test suite"
-    task :clean_mongo do
-        sh("mongo #{REPO_ROOT}/scripts/delete-mongo-test-dbs.js")
-    end
 end
+
+desc "Run all tests"
+task :test, [:test_id] => [:test_docs, 'test:python']
 
 desc "Build the html, xml, and diff coverage reports"
 task :coverage => :report_dirs do
@@ -181,7 +164,3 @@ task :coverage => :report_dirs do
         puts "\n"
     end
 end
-
-# Other Rake files append additional tests to the main test command.
-desc "Run all unit tests"
-task :test, [:test_id] => 'test:python'

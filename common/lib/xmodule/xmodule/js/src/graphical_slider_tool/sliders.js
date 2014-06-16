@@ -2,7 +2,7 @@
 // define() functions from Require JS available inside the anonymous function.
 (function (requirejs, require, define) {
 
-define('Sliders', [], function () {
+define('Sliders', ['logme'], function (logme) {
     return Sliders;
 
     function Sliders(gstId, state) {
@@ -18,10 +18,10 @@ define('Sliders', [], function () {
             if (sliderDiv.length === 1) {
                 createSlider(sliderDiv, paramName);
             } else if (sliderDiv.length > 1) {
-                console.log('ERROR: Found more than one slider for the parameter "' + paramName + '".');
-                console.log('sliderDiv.length = ', sliderDiv.length);
+                logme('ERROR: Found more than one slider for the parameter "' + paramName + '".');
+                logme('sliderDiv.length = ', sliderDiv.length);
             } // else {
-            //     console.log('MESSAGE: Did not find a slider for the parameter "' + paramName + '".');
+            //     logme('MESSAGE: Did not find a slider for the parameter "' + paramName + '".');
             // }
         }
 
@@ -32,7 +32,7 @@ define('Sliders', [], function () {
 
             // Check that the retrieval went OK.
             if (paramObj === undefined) {
-                console.log('ERROR: Could not get a paramObj for parameter "' + paramName + '".');
+                logme('ERROR: Could not get a paramObj for parameter "' + paramName + '".');
 
                 return;
             }
@@ -69,13 +69,13 @@ define('Sliders', [], function () {
                 // change the our value back in the case when the new value is
                 // invalid for some reason.
                 if (state.setParameterValue(paramName, ui.value, sliderDiv, true, 'slide') === undefined) {
-                    console.log('ERROR: Could not update the parameter named "' + paramName + '" with the value "' + ui.value + '".');
+                    logme('ERROR: Could not update the parameter named "' + paramName + '" with the value "' + ui.value + '".');
                 }
             }
 
             function sliderOnChange(event, ui) {
                 if (state.setParameterValue(paramName, ui.value, sliderDiv, true, 'change') === undefined) {
-                    console.log('ERROR: Could not update the parameter named "' + paramName + '" with the value "' + ui.value + '".');
+                    logme('ERROR: Could not update the parameter named "' + paramName + '" with the value "' + ui.value + '".');
                 }
             }
         }

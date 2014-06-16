@@ -34,7 +34,7 @@ def i_created_a_video_component(step):
 
     world.wait_for_present('.is-initialized')
     world.wait(DELAY)
-    world.wait_for_invisible(SELECTORS['spinner'])
+    assert not world.css_visible(SELECTORS['spinner'])
 
 
 @step('I have created a Video component with subtitles$')
@@ -59,7 +59,8 @@ def i_created_a_video_with_subs_with_name(_step, sub_id):
     world.disable_jquery_animations()
 
     world.wait_for_present('.is-initialized')
-    world.wait_for_invisible(SELECTORS['spinner'])
+    world.wait(DELAY)
+    assert not world.css_visible(SELECTORS['spinner'])
 
 
 @step('I have uploaded subtitles "([^"]*)"$')
@@ -141,13 +142,12 @@ def the_youtube_video_is_shown(_step):
 @step('Make sure captions are (.+)$')
 def set_captions_visibility_state(_step, captions_state):
     SELECTOR = '.closed .subtitles'
-    world.wait_for_visible('.hide-subtitles')
     if captions_state == 'closed':
         if not world.is_css_present(SELECTOR):
-            world.css_find('.hide-subtitles').click()
+            world.browser.find_by_css('.hide-subtitles').click()
     else:
         if world.is_css_present(SELECTOR):
-            world.css_find('.hide-subtitles').click()
+            world.browser.find_by_css('.hide-subtitles').click()
 
 
 @step('I hover over button "([^"]*)"$')

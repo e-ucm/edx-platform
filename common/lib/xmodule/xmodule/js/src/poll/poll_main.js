@@ -1,5 +1,5 @@
 (function (requirejs, require, define) {
-define('PollMain', [], function () {
+define('PollMain', ['logme'], function (logme) {
 
 PollMain.prototype = {
 
@@ -240,7 +240,7 @@ function PollMain(el) {
     this.questionEl = $(el).find('.poll_question');
     if (this.questionEl.length !== 1) {
         // We require one question DOM element.
-        console.log('ERROR: PollMain constructor requires one question DOM element.');
+        logme('ERROR: PollMain constructor requires one question DOM element.');
 
         return;
     }
@@ -248,7 +248,7 @@ function PollMain(el) {
     // Just a safety precussion. If we run this code more than once, multiple 'click' callback handlers will be
     // attached to the same DOM elements. We don't want this to happen.
     if (this.questionEl.attr('poll_main_processed') === 'true') {
-        console.log(
+        logme(
             'ERROR: PolMain JS constructor was called on a DOM element that has already been processed once.'
         );
 
@@ -272,7 +272,7 @@ function PollMain(el) {
             c1 += 1;
 
             if (
-                (tempEl.tagName.toLowerCase() === 'div') &&
+                (tempEl.tagName.toLowerCase() === 'section') &&
                 ($(tempEl).hasClass('xmodule_WrapperModule') === true)
             ) {
                 _this.wrapperSectionEl = tempEl;
@@ -308,7 +308,7 @@ function PollMain(el) {
 
         return;
     } catch (err) {
-        console.log(
+        logme(
             'ERROR: Invalid JSON config for poll ID "' + this.id + '".',
             'Error messsage: "' + err.message + '".'
         );
@@ -317,7 +317,7 @@ function PollMain(el) {
     }
 } // End-of: function PollMain(el) {
 
-}); // End-of: define('PollMain', [], function () {
+}); // End-of: define('PollMain', ['logme'], function (logme) {
 
 // End-of: (function (requirejs, require, define) {
 }(RequireJS.requirejs, RequireJS.require, RequireJS.define));

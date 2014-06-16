@@ -37,7 +37,7 @@ from bulk_email.models import (
     SEND_TO_MYSELF, SEND_TO_ALL, TO_OPTIONS,
 )
 from courseware.courses import get_course, course_image_url
-from student.roles import CourseStaffRole, CourseInstructorRole
+from courseware.roles import CourseStaffRole, CourseInstructorRole
 from instructor_task.models import InstructorTask
 from instructor_task.subtasks import (
     SubtaskStatus,
@@ -159,9 +159,8 @@ def perform_delegate_email_batches(entry_id, course_id, task_input, action_name)
     # Perfunctory check, since expansion is made for convenience of other task
     # code that doesn't need the entry_id.
     if course_id != entry.course_id:
-        format_msg = u"Course id conflict: explicit value {} does not match task value {}"
-        log.warning("Task %s: %s", task_id, format_msg.format(course_id, entry.course_id))
-        raise ValueError("Course id conflict: explicit value does not match task value")
+        format_msg = "Course id conflict: explicit value {} does not match task value {}"
+        raise ValueError(format_msg.format(course_id, entry.course_id))
 
     # Fetch the CourseEmail.
     email_id = task_input['email_id']
@@ -187,9 +186,8 @@ def perform_delegate_email_batches(entry_id, course_id, task_input, action_name)
 
     # Sanity check that course for email_obj matches that of the task referencing it.
     if course_id != email_obj.course_id:
-        format_msg = u"Course id conflict: explicit value {} does not match email value {}"
-        log.warning("Task %s: %s", task_id, format_msg.format(course_id, entry.course_id))
-        raise ValueError("Course id conflict: explicit value does not match email value")
+        format_msg = "Course id conflict: explicit value {} does not match email value {}"
+        raise ValueError(format_msg.format(course_id, email_obj.course_id))
 
     # Fetch the course object.
     try:
@@ -221,7 +219,7 @@ def perform_delegate_email_batches(entry_id, course_id, task_input, action_name)
     recipient_qset = _get_recipient_queryset(user_id, to_option, course_id, course.location)
     recipient_fields = ['profile__name', 'email']
 
-    log.info(u"Task %s: Preparing to queue subtasks for sending emails for course %s, email %s, to_option %s",
+    log.info("Task %s: Preparing to queue subtasks for sending emails for course %s, email %s, to_option %s",
              task_id, course_id, email_id, to_option)
 
     progress = queue_subtasks_for_query(
@@ -376,7 +374,7 @@ def _get_source_address(course_id, course_title):
     invalid_chars = re.compile(r"[^\w.-]")
     course_num = invalid_chars.sub('_', course_num)
 
-    from_addr = u'"{0}" Course Staff <{1}-{2}>'.format(course_title_no_quotes, course_num, settings.BULK_EMAIL_DEFAULT_FROM_EMAIL)
+    from_addr = '"{0}" Course Staff <{1}-{2}>'.format(course_title_no_quotes, course_num, settings.BULK_EMAIL_DEFAULT_FROM_EMAIL)
     return from_addr
 
 
@@ -679,5 +677,5 @@ def _statsd_tag(course_title):
     """
     Calculate the tag we will use for DataDog.
     """
-    tag = u"course_email:{0}".format(course_title)
+    tag = "course_email:{0}".format(course_title)
     return tag[:200]

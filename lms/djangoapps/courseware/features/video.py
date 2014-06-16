@@ -1,7 +1,8 @@
 #pylint: disable=C0111
 
 from lettuce import world, step
-from common import i_am_registered_for_the_course, section_location, visit_scenario_item
+from lettuce.django import django_url
+from common import i_am_registered_for_the_course, section_location
 from django.utils.translation import ugettext as _
 
 ############### ACTIONS ####################
@@ -15,9 +16,6 @@ HTML5_SOURCES_INCORRECT = [
     'https://s3.amazonaws.com/edx-course-videos/edx-intro/edX-FA12-cware-1_100.mp99'
 ]
 
-coursenum = 'test_course'
-sequence = {}
-
 @step('when I view the (.*) it does not have autoplay enabled$')
 def does_not_autoplay(_step, video_type):
     assert(world.css_find('.%s' % video_type)[0]['data-autoplay'] == 'False')
@@ -25,48 +23,26 @@ def does_not_autoplay(_step, video_type):
 
 @step('the course has a Video component in (.*) mode$')
 def view_video(_step, player_mode):
-
-    i_am_registered_for_the_course(_step, coursenum)
+    coursenum = 'test_course'
+    i_am_registered_for_the_course(step, coursenum)
 
     # Make sure we have a video
     add_video_to_course(coursenum, player_mode.lower())
-    visit_scenario_item('SECTION')
+    chapter_name = world.scenario_dict['SECTION'].display_name.replace(" ", "_")
+    section_name = chapter_name
+    url = django_url('/courses/%s/%s/%s/courseware/%s/%s' %
+                    (world.scenario_dict['COURSE'].org, world.scenario_dict['COURSE'].number, world.scenario_dict['COURSE'].display_name.replace(' ', '_'),
+                        chapter_name, section_name,))
+    world.browser.visit(url)
 
 
-@step('a video "([^"]*)" in "([^"]*)" mode in position "([^"]*)" of sequential$')
-def add_video(_step, player_id, player_mode, position):
-    sequence[player_id] = position
-    add_video_to_course(coursenum, player_mode.lower(), display_name=player_id)
-
-
-@step('I open the section with videos$')
-def visit_video_section(_step):
-    visit_scenario_item('SECTION')
-
-
-@step('I select the "([^"]*)" speed on video "([^"]*)"$')
-def change_video_speed(_step, speed, player_id):
-      _navigate_to_an_item_in_a_sequence(sequence[player_id])
-      _change_video_speed(speed)
-
-
-@step('I open video "([^"]*)"$')
-def open_video(_step, player_id):
-    _navigate_to_an_item_in_a_sequence(sequence[player_id])
-
-
-@step('video "([^"]*)" should start playing at speed "([^"]*)"$')
-def check_video_speed(_step, player_id, speed):
-    speed_css = '.speeds p.active'
-    assert world.css_has_text(speed_css, '{0}x'.format(speed))
-
-def add_video_to_course(course, player_mode, display_name='Video'):
+def add_video_to_course(course, player_mode):
     category = 'video'
 
     kwargs = {
         'parent_location': section_location(course),
         'category': category,
-        'display_name': display_name
+        'display_name': 'Video'
     }
 
     if player_mode == 'html5':
@@ -107,7 +83,7 @@ def add_video_to_course(course, player_mode, display_name='Video'):
 
 @step('youtube server is up and response time is (.*) seconds$')
 def set_youtube_response_timeout(_step, time):
-    world.youtube.config['time_to_response'] = float(time)
+    world.youtube_server.time_to_response = time
 
 
 @step('when I view the video it has rendered in (.*) mode$')
@@ -123,10 +99,8 @@ def video_is_rendered(_step, mode):
 
 @step('all sources are correct$')
 def all_sources_are_correct(_step):
-    elements = world.css_find('.video video source')
-    sources = [source['src'].split('?')[0] for source in elements]
-
-    assert set(sources) == set(HTML5_SOURCES)
+    sources = world.css_find('.video video source')
+    assert set(source['src'] for source in sources) == set(HTML5_SOURCES)
 
 
 @step('error message is shown$')
@@ -142,12 +116,3 @@ def error_message_has_correct_text(_step):
     assert world.css_has_text(selector, text)
 
 
-def _navigate_to_an_item_in_a_sequence(number):
-    sequence_css = 'a[data-element="{0}"]'.format(number)
-    world.css_click(sequence_css)
-
-
-def _change_video_speed(speed):
-    world.browser.execute_script("$('.speeds').addClass('open')")
-    speed_css = 'li[data-speed="{0}"] a'.format(speed)
-    world.css_click(speed_css)

@@ -53,10 +53,7 @@ class Command(NoArgsCommand):
         """
         # TODO: do we need to include anything else?
         # TODO: do this with the django-settings-context-processor
-        return {
-            "FEATURES": settings.FEATURES,
-            "THEME_NAME" : getattr(settings, "THEME_NAME", None),
-        }
+        return { "THEME_NAME" : getattr(settings, "THEME_NAME", None) }
 
 
     def __preprocess(self, infile, outfile):

@@ -48,14 +48,12 @@ class TestEmailSendFromDashboard(ModuleStoreTestCase):
 
     @patch.dict(settings.FEATURES, {'ENABLE_INSTRUCTOR_EMAIL': True, 'REQUIRE_COURSE_EMAIL_AUTH': False})
     def setUp(self):
-        course_title = u"ẗëṡẗ title ｲ乇丂ｲ ﾶ乇丂丂ﾑg乇 ｷo尺 ﾑﾚﾚ тэѕт мэѕѕаБэ"
-        self.course = CourseFactory.create(display_name=course_title)
+        self.course = CourseFactory.create()
 
         self.instructor = InstructorFactory(course=self.course.location)
 
         # Create staff
-        self.staff = [StaffFactory(course=self.course.location)
-                      for _ in xrange(STAFF_COUNT)]
+        self.staff = [StaffFactory(course=self.course.location) for _ in xrange(STAFF_COUNT)]
 
         # Create students
         self.students = [UserFactory() for _ in xrange(STUDENT_COUNT)]

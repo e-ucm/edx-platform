@@ -25,16 +25,16 @@ from path import path
 from importlib import import_module
 from xmodule.errortracker import null_error_tracker, exc_info_to_str
 from xmodule.mako_module import MakoDescriptorSystem
+from xmodule.x_module import XModuleDescriptor
 from xmodule.error_module import ErrorDescriptor
-from xblock.runtime import KvsFieldData
+from xblock.runtime import DbModel
 from xblock.exceptions import InvalidScopeError
 from xblock.fields import Scope, ScopeIds
 
 from xmodule.modulestore import ModuleStoreWriteBase, Location, MONGO_MODULESTORE_TYPE
 from xmodule.modulestore.exceptions import ItemNotFoundError
 from xmodule.modulestore.inheritance import own_metadata, InheritanceMixin, inherit_metadata, InheritanceKeyValueStore
-from xmodule.modulestore.xml import LocationReader
-from xblock.core import XBlock
+import re
 
 log = logging.getLogger(__name__)
 
@@ -148,12 +148,7 @@ class CachingDescriptorSystem(MakoDescriptorSystem):
         render_template: a function for rendering templates, as per
             MakoDescriptorSystem
         """
-        super(CachingDescriptorSystem, self).__init__(
-            id_reader=LocationReader(),
-            field_data=None,
-            load_item=self.load_item,
-            **kwargs
-        )
+        super(CachingDescriptorSystem, self).__init__(load_item=self.load_item, **kwargs)
 
         self.modulestore = modulestore
         self.module_data = module_data
@@ -179,8 +174,10 @@ class CachingDescriptorSystem(MakoDescriptorSystem):
             # load the module and apply the inherited metadata
             try:
                 category = json_data['location']['category']
-                class_ = self.load_block_type(category)
-
+                class_ = XModuleDescriptor.load_class(
+                    category,
+                    self.default_class
+                )
                 definition = json_data.get('definition', {})
                 metadata = json_data.get('metadata', {})
                 for old_name, new_name in getattr(class_, 'metadata_translations', {}).items():
@@ -194,7 +191,7 @@ class CachingDescriptorSystem(MakoDescriptorSystem):
                     metadata,
                 )
 
-                field_data = KvsFieldData(kvs)
+                field_data = DbModel(kvs)
                 scope_ids = ScopeIds(None, category, location, location)
                 module = self.construct_xblock_from_class(class_, scope_ids, field_data)
                 if self.cached_metadata is not None:
@@ -278,29 +275,25 @@ class MongoModuleStore(ModuleStoreWriteBase):
             """
             Create & open the connection, authenticate, and provide pointers to the collection
             """
-            self.database = pymongo.database.Database(
-                pymongo.MongoClient(
-                    host=host,
-                    port=port,
-                    tz_aware=tz_aware,
-                    **kwargs
-                ),
-                db
-            )
-            self.collection = self.database[collection]
+            self.collection = pymongo.connection.Connection(
+                host=host,
+                port=port,
+                tz_aware=tz_aware,
+                **kwargs
+            )[db][collection]
 
             if user is not None and password is not None:
-                self.database.authenticate(user, password)
+                self.collection.database.authenticate(user, password)
 
         do_connection(**doc_store_config)
 
         # Force mongo to report errors, at the expense of performance
-        self.collection.write_concern = {'w': 1}
+        self.collection.safe = True
 
         # Force mongo to maintain an index over _id.* that is in the same order
         # that is used when querying by a location
         self.collection.ensure_index(
-            zip(('_id.' + field for field in Location._fields), repeat(1)),
+            zip(('_id.' + field for field in Location._fields), repeat(1))
         )
 
         if default_class is not None:
@@ -487,8 +480,7 @@ class MongoModuleStore(ModuleStoreWriteBase):
         """
         Load an XModuleDescriptor from item, using the children stored in data_cache
         """
-        location = Location(item['location'])
-        data_dir = getattr(item, 'data_dir', location.course)
+        data_dir = getattr(item, 'data_dir', item['location']['course'])
         root = self.fs_root / data_dir
 
         if not root.isdir():
@@ -498,7 +490,7 @@ class MongoModuleStore(ModuleStoreWriteBase):
 
         cached_metadata = {}
         if apply_cached_metadata:
-            cached_metadata = self.get_cached_metadata_inheritance_tree(location)
+            cached_metadata = self.get_cached_metadata_inheritance_tree(Location(item['location']))
 
         # TODO (cdodge): When the 'split module store' work has been completed, we should remove
         # the 'metadata_inheritance_tree' parameter
@@ -511,9 +503,8 @@ class MongoModuleStore(ModuleStoreWriteBase):
             render_template=self.render_template,
             cached_metadata=cached_metadata,
             mixins=self.xblock_mixins,
-            select=self.xblock_select,
         )
-        return system.load_item(location)
+        return system.load_item(item['location'])
 
     def _load_items(self, items, depth=0):
         """
@@ -633,9 +624,8 @@ class MongoModuleStore(ModuleStoreWriteBase):
                 render_template=self.render_template,
                 cached_metadata={},
                 mixins=self.xblock_mixins,
-                select=self.xblock_select,
             )
-        xblock_class = system.load_block_type(location.category)
+        xblock_class = XModuleDescriptor.load_class(location.category, self.default_class)
         if definition_data is None:
             if hasattr(xblock_class, 'data') and xblock_class.data.default is not None:
                 definition_data = xblock_class.data.default
@@ -731,7 +721,7 @@ class MongoModuleStore(ModuleStoreWriteBase):
         # @hack! We need to find the course location however, we don't
         # know the 'name' parameter in this context, so we have
         # to assume there's only one item in this query even though we are not specifying a name
-        course_search_location = Location('i4x', location.org, location.course, 'course', None)
+        course_search_location = ['i4x', location.org, location.course, 'course', None]
         courses = self.get_items(course_search_location, depth=depth)
 
         # make sure we found exactly one match on this above course search
@@ -787,8 +777,6 @@ class MongoModuleStore(ModuleStoreWriteBase):
         location: Something that can be passed to Location
         children: A list of child item identifiers
         """
-        # Normalize the children to urls
-        children = [Location(child).url() for child in children]
 
         self._update_single_item(location, {'definition.children': children})
         # recompute (and update) the metadata inheritance tree which is cached
@@ -870,11 +858,10 @@ class MongoModuleStore(ModuleStoreWriteBase):
         """
         return MONGO_MODULESTORE_TYPE
 
-    def get_orphans(self, course_location, _branch):
+    def get_orphans(self, course_location, detached_categories, _branch):
         """
         Return an array all of the locations for orphans in the course.
         """
-        detached_categories = [name for name, __ in XBlock.load_tagged_classes("detached")]
         all_items = self.collection.find({
             '_id.org': course_location.org,
             '_id.course': course_location.course,
@@ -899,5 +886,5 @@ class MongoModuleStore(ModuleStoreWriteBase):
             metadata,
         )
 
-        field_data = KvsFieldData(kvs)
+        field_data = DbModel(kvs)
         return field_data

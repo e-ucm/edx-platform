@@ -16,7 +16,6 @@ if Backbone?
         @nav.on "thread:created", @navigateToThread
         @newPost = $('.new-post-article')
         $('.new-post-btn').bind "click", @showNewPost
-        $('.new-post-btn').bind "keydown", (event) => DiscussionUtil.activateOnSpace(event, @showNewPost)
         $('.new-post-cancel').bind "click", @hideNewPost
 
     allThreads: ->
@@ -42,6 +41,9 @@ if Backbone?
       @main.render()
       @main.on "thread:responses:rendered", =>
         @nav.updateSidebar()
+      @main.on "tag:selected", (tag) =>
+        search = "[#{tag}]"
+        @nav.setAndSearchFor(search)
 
     navigateToThread: (thread_id) =>
       thread = @discussion.get(thread_id)

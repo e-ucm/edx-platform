@@ -1,5 +1,5 @@
-define(["js/views/baseview", "underscore", "js/views/feedback_prompt", "js/views/section_show", "require"], function(BaseView, _, PromptView, SectionShowView, require) {
-    var SectionEdit = BaseView.extend({
+define(["backbone", "underscore", "js/views/feedback_prompt", "js/views/section_show", "require"], function(Backbone, _, PromptView, SectionShowView, require) {
+    var SectionEdit = Backbone.View.extend({
         render: function() {
             var attrs = {
                 name: this.model.escape('name')

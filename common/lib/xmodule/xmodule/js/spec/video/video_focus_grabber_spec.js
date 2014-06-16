@@ -1,4 +1,4 @@
-(function (undefined) {
+(function () {
     describe('Video FocusGrabber', function () {
         var state;
 

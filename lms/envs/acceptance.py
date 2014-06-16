@@ -34,7 +34,7 @@ DOC_STORE_CONFIG = {
 }
 
 modulestore_options = {
-    'default_class': 'xmodule.hidden_module.HiddenDescriptor',
+    'default_class': 'xmodule.raw_module.RawDescriptor',
     'fs_root': TEST_ROOT / "data",
     'render_template': 'edxmako.shortcuts.render_to_string',
 }
@@ -152,7 +152,6 @@ SELENIUM_GRID = {
     'BROWSER': LETTUCE_BROWSER,
 }
 
-
 #####################################################################
 # See if the developer has any local overrides.
 try:
@@ -162,9 +161,22 @@ except ImportError:
 
 # Because an override for where to run will affect which ports to use,
 # set these up after the local overrides.
-# Configure XQueue interface to use our stub XQueue server
+if LETTUCE_SELENIUM_CLIENT == 'saucelabs':
+    LETTUCE_SERVER_PORT = choice(PORTS)
+    PORTS.remove(LETTUCE_SERVER_PORT)
+else:
+    LETTUCE_SERVER_PORT = randint(1024, 65535)
+
+# Set up XQueue information so that the lms will send
+# requests to a mock XQueue server running locally
+if LETTUCE_SELENIUM_CLIENT == 'saucelabs':
+    XQUEUE_PORT = choice(PORTS)
+    PORTS.remove(XQUEUE_PORT)
+else:
+    XQUEUE_PORT = randint(1024, 65535)
+
 XQUEUE_INTERFACE = {
-    "url": "http://127.0.0.1:{0:d}".format(XQUEUE_PORT),
+    "url": "http://127.0.0.1:%d" % XQUEUE_PORT,
     "django_auth": {
         "username": "lms",
         "password": "***REMOVED***"
@@ -172,5 +184,10 @@ XQUEUE_INTERFACE = {
     "basic_auth": ('anant', 'agarwal'),
 }
 
-# Point the URL used to test YouTube availability to our stub YouTube server
-YOUTUBE_TEST_URL = "http://127.0.0.1:{0}/test_youtube/".format(YOUTUBE_PORT)
+# Set up Video information so that the lms will send
+# requests to a mock Youtube server running locally
+if LETTUCE_SELENIUM_CLIENT == 'saucelabs':
+    VIDEO_PORT = choice(PORTS)
+    PORTS.remove(VIDEO_PORT)
+else:
+    VIDEO_PORT = randint(1024, 65535)

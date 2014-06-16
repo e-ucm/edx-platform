@@ -1,6 +1,6 @@
 require(["domReady", "jquery", "underscore", "gettext", "js/views/feedback_notification", "js/views/feedback_prompt",
-    "js/utils/get_date", "js/utils/module", "js/utils/handle_iframe_binding", "jquery.ui", "jquery.leanModal", "jquery.form", "jquery.smoothScroll"],
-    function(domReady, $, _, gettext, NotificationView, PromptView, DateUtils, ModuleUtils, IframeUtils) {
+    "js/utils/get_date", "js/utils/module", "jquery.ui", "jquery.leanModal", "jquery.form", "jquery.smoothScroll"],
+    function(domReady, $, _, gettext, NotificationView, PromptView, DateUtils, ModuleUtils) {
 
 var $body;
 var $newComponentItem;
@@ -25,7 +25,7 @@ domReady(function() {
 
     $('body').addClass('js');
 
-    $('.unit .item-actions .delete-unit-button').bind('click', deleteUnit);
+    $('.unit .item-actions .delete-button').bind('click', deleteUnit);
     $('.new-unit-item').bind('click', createNewUnit);
 
     // lean/simple modal
@@ -113,8 +113,6 @@ domReady(function() {
     $('.edit-subsection-publish-settings').on('change', '.start-date, .start-time', function() {
         $('.edit-subsection-publish-settings').find('.save-button').show();
     });
-
-    IframeUtils.iframeBinding();
 });
 
 function smoothScrollLink(e) {
@@ -245,17 +243,17 @@ function createNewUnit(e) {
 
 function deleteUnit(e) {
     e.preventDefault();
-    _deleteItem($(this).parents('li.courseware-unit'), 'Unit');
+    _deleteItem($(this).parents('li.leaf'), 'Unit');
 }
 
 function deleteSubsection(e) {
     e.preventDefault();
-    _deleteItem($(this).parents('li.courseware-subsection'), 'Subsection');
+    _deleteItem($(this).parents('li.branch'), 'Subsection');
 }
 
 function deleteSection(e) {
     e.preventDefault();
-    _deleteItem($(this).parents('section.courseware-section'), 'Section');
+    _deleteItem($(this).parents('section.branch'), 'Section');
 }
 
 function _deleteItem($el, type) {

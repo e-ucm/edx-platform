@@ -1,9 +1,9 @@
 define(["domReady", "jquery", "jquery.ui", "underscore", "gettext", "js/views/feedback_notification", "draggabilly",
-    "js/utils/cancel_on_escape", "js/utils/get_date", "js/utils/module"],
-    function (domReady, $, ui, _, gettext, NotificationView, Draggabilly, CancelOnEscape,
+    "js/utils/modal", "js/utils/cancel_on_escape", "js/utils/get_date", "js/utils/module"],
+    function (domReady, $, ui, _, gettext, NotificationView, Draggabilly, ModalUtils, CancelOnEscape,
               DateUtils, ModuleUtils) {
 
-        var modalSelector = '.edit-section-publish-settings';
+        var modalSelector = '.edit-subsection-publish-settings';
 
         var toggleSections = function(e) {
             e.preventDefault();
@@ -21,24 +21,18 @@ define(["domReady", "jquery", "jquery.ui", "underscore", "gettext", "js/views/fe
             if ($button.hasClass('is-activated')) {
                 $section.addClass('collapsed');
                 // first child in order to avoid the icons on the subsection lists which are not in the first child
-                $section.find('header .expand-collapse').removeClass('collapse').addClass('expand');
+                $section.find('header .expand-collapse-icon').removeClass('collapse').addClass('expand');
             } else {
                 $section.removeClass('collapsed');
                 // first child in order to avoid the icons on the subsection lists which are not in the first child
-                $section.find('header .expand-collapse').removeClass('expand').addClass('collapse');
+                $section.find('header .expand-collapse-icon').removeClass('expand').addClass('collapse');
             }
         };
 
         var toggleSubmodules = function(e) {
             e.preventDefault();
             $(this).toggleClass('expand').toggleClass('collapse');
-            $(this).closest('.is-collapsible, .window').toggleClass('collapsed');
-        };
-
-
-        var closeModalNew = function () {
-            $('body').removeClass('dialog-is-shown');
-            $('.edit-section-publish-settings').removeClass('is-shown');
+            $(this).closest('.branch, .window').toggleClass('collapsed');
         };
 
         var editSectionPublishDate = function (e) {
@@ -51,16 +45,15 @@ define(["domReady", "jquery", "jquery.ui", "underscore", "gettext", "js/views/fe
                 $modal.find('.save-button').hide();
             }
             $modal.find('.section-name').html('"' + $(this).closest('.courseware-section').find('.section-name-span').text() + '"');
-            $('body').addClass('dialog-is-shown');
-            $('.edit-section-publish-settings').addClass('is-shown');
+            ModalUtils.showModal();
         };
 
         var saveSetSectionScheduleDate = function (e) {
             e.preventDefault();
 
             var datetime = DateUtils(
-                $('.edit-section-publish-settings .start-date'),
-                $('.edit-section-publish-settings .start-time')
+                $('.edit-subsection-publish-settings .start-date'),
+                $('.edit-subsection-publish-settings .start-time')
             );
 
             var locator = $(modalSelector).attr('data-locator');
@@ -96,19 +89,19 @@ define(["domReady", "jquery", "jquery.ui", "underscore", "gettext", "js/views/fe
                     var $thisSection = $('.courseware-section[data-locator="' + locator + '"]');
                     var html = _.template(
                         '<span class="published-status">' +
-                            '<strong>' + gettext("Release date:") + '&nbsp;</strong>' +
+                            '<strong>' + gettext("Will Release:") + '&nbsp;</strong>' +
                             gettext("{month}/{day}/{year} at {hour}:{minute} UTC") +
                             '</span>' +
-                            '<a href="#" class="edit-release-date action" data-date="{month}/{day}/{year}" data-time="{hour}:{minute}" data-locator="{locator}"><i class="icon-time"></i> <span class="sr">' +
-                            gettext("Edit section release date") +
-                            '</span></a>',
+                            '<a href="#" class="edit-button" data-date="{month}/{day}/{year}" data-time="{hour}:{minute}" data-locator="{locator}">' +
+                            gettext("Edit") +
+                            '</a>',
                         {year: datetime.getUTCFullYear(), month: pad2(datetime.getUTCMonth() + 1), day: pad2(datetime.getUTCDate()),
                             hour: pad2(datetime.getUTCHours()), minute: pad2(datetime.getUTCMinutes()),
                             locator: locator},
                         {interpolate: /\{(.+?)\}/g});
                     $thisSection.find('.section-published-date').html(html);
+                    ModalUtils.hideModal();
                     saving.hide();
-                    closeModalNew();
                 });
         };
 
@@ -166,7 +159,7 @@ define(["domReady", "jquery", "jquery.ui", "underscore", "gettext", "js/views/fe
             var $saveButton = $newSubsection.find('.new-subsection-name-save');
             var $cancelButton = $newSubsection.find('.new-subsection-name-cancel');
 
-            var parent = $(this).parents("section.courseware-section").data("locator");
+            var parent = $(this).parents("section.branch").data("locator");
 
             $saveButton.data('parent', parent);
             $saveButton.data('category', $(this).data('category'));
@@ -204,7 +197,7 @@ define(["domReady", "jquery", "jquery.ui", "underscore", "gettext", "js/views/fe
 
         var cancelNewSubsection = function (e) {
             e.preventDefault();
-            $(this).parents('li.courseware-subsection').remove();
+            $(this).parents('li.branch').remove();
         };
 
         var overviewDragger = {
@@ -219,7 +212,6 @@ define(["domReady", "jquery", "jquery.ui", "underscore", "gettext", "js/views/fe
              */
             findDestination: function (ele, yChange) {
                 var eleY = ele.offset().top;
-                var eleYEnd = eleY + ele.height();
                 var containers = $(ele.data('droppable-class'));
 
                 for (var i = 0; i < containers.length; i++) {
@@ -234,15 +226,7 @@ define(["domReady", "jquery", "jquery.ui", "underscore", "gettext", "js/views/fe
                     // position of the container
                     var parentList = container.parents(ele.data('parent-location-selector')).first();
                     if (parentList.hasClass('collapsed')) {
-                        var parentListTop =  parentList.offset().top;
-                        // To make it easier to drop subsections into collapsed sections (which have
-                        // a lot of visual padding around them), allow a fudge factor around the
-                        // parent element.
-                        var collapseFudge = 10;
-                        if (Math.abs(eleY - parentListTop) < collapseFudge ||
-                            (eleY > parentListTop &&
-                             eleYEnd - collapseFudge <= parentListTop + parentList.height())
-                            ) {
+                        if (Math.abs(eleY - parentList.offset().top) < 10) {
                             return {
                                 ele: container,
                                 attachMethod: 'prepend',
@@ -276,64 +260,25 @@ define(["domReady", "jquery", "jquery.ui", "underscore", "gettext", "js/views/fe
                                 // Facilitate dropping into the beginning or end of a list
                                 // (coming from opposite direction) via a "fudge factor". Math.min is for Jasmine test.
                                 var fudge = Math.min(Math.ceil(siblingHeight / 2), 20);
-
-                                // Dragging to top or bottom of a list with only one element is tricky
-                                // because the element being dragged may be the same size as the sibling.
-                                if (siblings.length == 1) {
-                                    // Element being dragged is within the drop target. Use the direction
-                                    // of the drag (yChange) to determine before or after.
-                                    if (eleY + fudge >= siblingY && eleYEnd - fudge <= siblingYEnd) {
-                                        return {
-                                            ele: $sibling,
-                                            attachMethod: yChange > 0 ? 'after' : 'before'
-                                        };
-                                    }
-                                    // Element being dragged is before the drop target.
-                                    else if (Math.abs(eleYEnd - siblingY) <= fudge) {
-                                        return {
-                                            ele: $sibling,
-                                            attachMethod: 'before'
-                                        };
-                                    }
-                                    // Element being dragged is after the drop target.
-                                    else if (Math.abs(eleY - siblingYEnd) <= fudge) {
-                                        return {
-                                            ele: $sibling,
-                                            attachMethod: 'after'
-                                        };
-                                    }
+                                // Dragging up into end of list.
+                                if (j == siblings.length - 1 && yChange < 0 && Math.abs(eleY - siblingYEnd) <= fudge) {
+                                    return {
+                                        ele: $sibling,
+                                        attachMethod: 'after'
+                                    };
                                 }
-                                else {
-                                    // Dragging up into end of list.
-                                    if (j == siblings.length - 1 && yChange < 0 && Math.abs(eleY - siblingYEnd) <= fudge) {
-                                        return {
-                                                ele: $sibling,
-                                                attachMethod: 'after'
-                                            };
-                                    }
-                                    // Dragging up or down into beginning of list.
-                                    else if (j == 0 && Math.abs(eleY - siblingY) <= fudge) {
-                                        return {
-                                            ele: $sibling,
-                                            attachMethod: 'before'
-                                        };
-                                    }
-                                    // Dragging down into end of list. Special handling required because
-                                    // the element being dragged may be taller then the element being dragged over
-                                    // (if eleY can never be >= siblingY, general case at the end does not work).
-                                    else if (j == siblings.length - 1 && yChange > 0 &&
-                                        Math.abs(eleYEnd - siblingYEnd) <= fudge) {
-                                        return {
-                                            ele: $sibling,
-                                            attachMethod: 'after'
-                                        };
-                                    }
-                                    else if (eleY >= siblingY && eleY <= siblingYEnd) {
-                                        return {
-                                            ele: $sibling,
-                                            attachMethod: eleY - siblingY <= siblingHeight / 2 ? 'before' : 'after'
-                                        };
-                                    }
+                                // Dragging down into beginning of list.
+                                else if (j == 0 && yChange > 0 && Math.abs(eleY - siblingY) <= fudge) {
+                                    return {
+                                        ele: $sibling,
+                                        attachMethod: 'before'
+                                    };
+                                }
+                                else if (eleY >= siblingY && eleY <= siblingYEnd) {
+                                    return {
+                                        ele: $sibling,
+                                        attachMethod: eleY - siblingY <= siblingHeight / 2 ? 'before' : 'after'
+                                    };
                                 }
                             }
                         }
@@ -365,7 +310,7 @@ define(["domReady", "jquery", "jquery.ui", "underscore", "gettext", "js/views/fe
                 };
                 if (!ele.hasClass('collapsed')) {
                     ele.addClass('collapsed');
-                    ele.find('.expand-collapse').first().addClass('expand').removeClass('collapse');
+                    ele.find('.expand-collapse-icon').first().addClass('expand').removeClass('collapse');
                     // onDragStart gets called again after the collapse, so we can't just store a variable in the dragState.
                     ele.addClass(this.expandOnDropClass);
                 }
@@ -461,7 +406,7 @@ define(["domReady", "jquery", "jquery.ui", "underscore", "gettext", "js/views/fe
 
             expandElement: function (ele) {
                 ele.removeClass('collapsed');
-                ele.find('.expand-collapse').first().removeClass('expand').addClass('collapse');
+                ele.find('.expand-collapse-icon').first().removeClass('expand').addClass('collapse');
             },
 
             /*
@@ -555,12 +500,13 @@ define(["domReady", "jquery", "jquery.ui", "underscore", "gettext", "js/views/fe
                 }
             });
             $('.toggle-button-sections').bind('click', toggleSections);
-            $('.expand-collapse').bind('click', toggleSubmodules);
+            $('.expand-collapse-icon').bind('click', toggleSubmodules);
 
             var $body = $('body');
-            $body.on('click', '.section-published-date .edit-release-date', editSectionPublishDate);
-            $body.on('click', '.edit-section-publish-settings .action-save', saveSetSectionScheduleDate);
-            $body.on('click', '.edit-section-publish-settings .action-cancel', closeModalNew);
+            $body.on('click', '.section-published-date .edit-button', editSectionPublishDate);
+            $body.on('click', '.section-published-date .schedule-button', editSectionPublishDate);
+            $body.on('click', '.edit-subsection-publish-settings .save-button', saveSetSectionScheduleDate);
+            $body.on('click', '.edit-subsection-publish-settings .cancel-button', ModalUtils.hideModal);
 
             $('.new-courseware-section-button').bind('click', addNewSection);
             $('.new-subsection-item').bind('click', addNewSubsection);
@@ -584,7 +530,7 @@ define(["domReady", "jquery", "jquery.ui", "underscore", "gettext", "js/views/fe
                 '.unit',
                 '.unit-drag-handle',
                 'ol.sortable-unit-list',
-                'li.courseware-subsection, article.subsection-body'
+                'li.branch, article.subsection-body'
             );
         });
 

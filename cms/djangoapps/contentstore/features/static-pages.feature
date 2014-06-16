@@ -1,11 +1,10 @@
-@shard_2
+@shard_3
 Feature: CMS.Static Pages
     As a course author, I want to be able to add static pages
 
     Scenario: Users can add static pages
         Given I have opened a new course in Studio
         And I go to the static pages page
-        Then I should not see any static pages
         When I add a new page
         Then I should see a static page named "Empty"
 

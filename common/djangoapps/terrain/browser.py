@@ -41,7 +41,6 @@ LOGGER = getLogger(__name__)
 LOGGER.info("Loading the lettuce acceptance testing terrain file...")
 
 MAX_VALID_BROWSER_ATTEMPTS = 20
-GLOBAL_SCRIPT_TIMEOUT = 20
 
 
 def get_saucelabs_username_and_key():
@@ -107,7 +106,7 @@ def initial_setup(server):
             # raise a WebDriverException
             try:
                 world.browser = Browser(browser_driver)
-                world.browser.driver.set_script_timeout(GLOBAL_SCRIPT_TIMEOUT)
+                world.browser.driver.set_script_timeout(10)
                 world.visit('/')
 
             except WebDriverException:
@@ -134,7 +133,7 @@ def initial_setup(server):
             **make_saucelabs_desired_capabilities()
         )
         world.absorb(30, 'IMPLICIT_WAIT')
-        world.browser.set_script_timeout(GLOBAL_SCRIPT_TIMEOUT)
+        world.browser.set_script_timeout(10)
 
     elif world.LETTUCE_SELENIUM_CLIENT == 'grid':
         world.browser = Browser(
@@ -143,7 +142,7 @@ def initial_setup(server):
             browser=settings.SELENIUM_GRID.get('BROWSER'),
         )
         world.absorb(30, 'IMPLICIT_WAIT')
-        world.browser.driver.set_script_timeout(GLOBAL_SCRIPT_TIMEOUT)
+        world.browser.driver.set_script_timeout(10)
 
     else:
         raise Exception("Unknown selenium client '{}'".format(world.LETTUCE_SELENIUM_CLIENT))
@@ -156,7 +155,7 @@ def initial_setup(server):
 def reset_data(scenario):
     """
     Clean out the django test database defined in the
-    envs/acceptance.py file: edx-platform/db/test_edx.db
+    envs/acceptance.py file: mitx_all/db/test_mitx.db
     """
     LOGGER.debug("Flushing the test database...")
     call_command('flush', interactive=False, verbosity=0)

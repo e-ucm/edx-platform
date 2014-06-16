@@ -1,10 +1,7 @@
 <%! from django.utils.translation import ugettext as _ %>
-
-<%inherit file="../main.html" />
-
+<%inherit file="../stripped-main.html" />
 <%! from django.core.urlresolvers import reverse %>
-
-<%block name="pagetitle">${_("edX edge")}</%block>
+<%block name="title"><title>${_("edX edge")}</title></%block>
 <%block name="bodyclass">no-header edge-landing</%block>
 
 <%block name="content">

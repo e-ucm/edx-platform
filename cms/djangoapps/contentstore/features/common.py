@@ -1,20 +1,18 @@
 # pylint: disable=C0111
 # pylint: disable=W0621
 
-import time
-import os
 from lettuce import world, step
-from nose.tools import assert_true, assert_in  # pylint: disable=no-name-in-module
+from nose.tools import assert_true, assert_in, assert_false  # pylint: disable=E0611
+
+from auth.authz import get_user_by_email, get_course_groupname_for_role
 from django.conf import settings
 
-from student.roles import CourseRole, CourseStaffRole, CourseInstructorRole
-from student.models import get_user
-
 from selenium.webdriver.common.keys import Keys
+import time
+import os
+from django.contrib.auth.models import Group
 
 from logging import getLogger
-from student.tests.factories import AdminFactory
-from student import auth
 logger = getLogger(__name__)
 
 from terrain.browser import reset_data
@@ -45,9 +43,9 @@ def i_confirm_with_ok(_step):
 @step(u'I press the "([^"]*)" delete icon$')
 def i_press_the_category_delete_icon(_step, category):
     if category == 'section':
-        css = 'a.action.delete-section-button'
+        css = 'a.delete-button.delete-section-button span.delete-icon'
     elif category == 'subsection':
-        css = 'a.action.delete-subsection-button'
+        css = 'a.delete-button.delete-subsection-button  span.delete-icon'
     else:
         assert False, 'Invalid category: %s' % category
     world.css_click(css)
@@ -160,9 +158,11 @@ def add_course_author(user, course):
     Add the user to the instructor group of the course
     so they will have the permissions to see it in studio
     """
-    global_admin = AdminFactory()
-    for role in (CourseStaffRole, CourseInstructorRole):
-        auth.add_users(global_admin, role(course.location), user)
+    for role in ("staff", "instructor"):
+        groupname = get_course_groupname_for_role(course.location, role)
+        group, __ = Group.objects.get_or_create(name=groupname)
+        user.groups.add(group)
+    user.save()
 
 
 def create_a_course():
@@ -171,7 +171,7 @@ def create_a_course():
 
     user = world.scenario_dict.get("USER")
     if not user:
-        user = get_user('robot+studio@edx.org')
+        user = get_user_by_email('robot+studio@edx.org')
 
     add_course_author(user, course)
 
@@ -254,7 +254,7 @@ def create_course_with_unit():
 
     world.wait_for_js_to_load()
     css_selectors = [
-        'div.section-item a.expand-collapse', 'a.new-unit-item'
+        'div.section-item a.expand-collapse-icon', 'a.new-unit-item'
     ]
     for selector in css_selectors:
         world.css_click(selector)
@@ -358,7 +358,7 @@ def other_user_login(step, name):
         login_form.find_by_name('submit').click()
     world.retry_on_exception(fill_login_form)
     assert_true(world.is_css_present('.new-course-button'))
-    world.scenario_dict['USER'] = get_user(name + '@edx.org')
+    world.scenario_dict['USER'] = get_user_by_email(name + '@edx.org')
 
 
 @step(u'the user "([^"]*)" exists( as a course (admin|staff member|is_staff))?$')
@@ -368,17 +368,18 @@ def create_other_user(_step, name, has_extra_perms, role_name):
     if has_extra_perms:
         if role_name == "is_staff":
             user.is_staff = True
-            user.save()
         else:
             if role_name == "admin":
                 # admins get staff privileges, as well
-                roles = (CourseStaffRole, CourseInstructorRole)
+                roles = ("staff", "instructor")
             else:
-                roles = (CourseStaffRole,)
+                roles = ("staff",)
             location = world.scenario_dict["COURSE"].location
-            global_admin = AdminFactory()
             for role in roles:
-                auth.add_users(global_admin, role(location), user)
+                groupname = get_course_groupname_for_role(location, role)
+                group, __ = Group.objects.get_or_create(name=groupname)
+                user.groups.add(group)
+        user.save()
 
 
 @step('I log out')
@@ -392,7 +393,7 @@ def i_edit_a_draft(_step):
 
 
 @step(u'I click on "replace with draft"$')
-def i_replace_w_draft(_step):
+def i_edit_a_draft(_step):
     world.css_click("a.publish-draft")
 
 

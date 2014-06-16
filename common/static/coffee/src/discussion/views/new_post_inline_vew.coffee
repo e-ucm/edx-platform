@@ -9,6 +9,9 @@ if Backbone?
 
       DiscussionUtil.makeWmdEditor @$el, $.proxy(@$, @), "new-post-body"
 
+      # TODO tags: commenting out til we know what to do with them
+      #@$(".new-post-tags").tagsInput DiscussionUtil.tagsInputOptions()
+
     events:
       "submit .new-post-form":            "createPost"
 
@@ -23,6 +26,9 @@ if Backbone?
       title   = @$(".new-post-title").val()
       body    = @$(".new-post-body").find(".wmd-input").val()
       group = @$(".new-post-group option:selected").attr("value")
+
+      # TODO tags: commenting out til we know what to do with them
+      #tags    = @$(".new-post-tags").val()
 
       anonymous          = false || @$("input.discussion-anonymous").is(":checked")
       anonymous_to_peers = false || @$("input.discussion-anonymous-to-peers").is(":checked")
@@ -42,6 +48,9 @@ if Backbone?
           body: body
           group_id: group
           
+          # TODO tags: commenting out til we know what to do with them
+          #tags: tags
+          
           anonymous: anonymous
           anonymous_to_peers: anonymous_to_peers
           auto_subscribe: follow
@@ -53,5 +62,9 @@ if Backbone?
           @$el.hide()
           @$(".new-post-title").val("").attr("prev-text", "")
           @$(".new-post-body textarea").val("").attr("prev-text", "")
+
+          # TODO tags, commenting out til we know what to do with them
+          #@$(".new-post-tags").val("")
+          #@$(".new-post-tags").importTags("")
 
           @collection.add thread

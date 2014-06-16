@@ -1,5 +1,5 @@
 (function (requirejs, require, define) {
-define([], function () {
+define(['js/capa/drag_and_drop/logme'], function (logme) {
     return BaseImage;
 
     function BaseImage(state) {
@@ -36,7 +36,7 @@ define([], function () {
             state.baseImageLoaded = true;
         });
         state.baseImageEl.error(function () {
-            console.log('ERROR: Image "' + state.config.baseImage + '" was not found!');
+            logme('ERROR: Image "' + state.config.baseImage + '" was not found!');
             baseImageElContainer.html(
                 '<span style="color: red;">' +
                     'ERROR: Image "' + state.config.baseImage + '" was not found!' +
@@ -45,5 +45,5 @@ define([], function () {
             baseImageElContainer.appendTo(state.containerEl);
         });
     }
-}); // End-of: define([], function () {
+}); // End-of: define(['logme'], function (logme) {
 }(RequireJS.requirejs, RequireJS.require, RequireJS.define)); // End-of: (function (requirejs, require, define) {

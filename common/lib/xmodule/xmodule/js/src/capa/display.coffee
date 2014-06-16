@@ -19,11 +19,11 @@ class @Problem
 
     problem_prefix = @element_id.replace(/problem_/,'')
     @inputs = @$("[id^=input_#{problem_prefix}_]")
-    @$('div.action input:button').click @refreshAnswers
-    @$('div.action input.check').click @check_fd
-    @$('div.action input.reset').click @reset
-    @$('div.action button.show').click @show
-    @$('div.action input.save').click @save
+    @$('section.action input:button').click @refreshAnswers
+    @$('section.action input.check').click @check_fd
+    @$('section.action input.reset').click @reset
+    @$('section.action button.show').click @show
+    @$('section.action input.save').click @save
 
     @bindResetCorrectness()
 
@@ -151,7 +151,7 @@ class @Problem
   # If some function wants to be called before sending the answer to the
   # server, give it a chance to do so.
   #
-  # check_save_waitfor allows the callee to send alerts if the user's input is
+  # check_waitfor allows the callee to send alerts if the user's input is
   # invalid. To do so, the callee must throw an exception named "Waitfor
   # Exception". This and any other errors or exceptions that arise from the
   # callee are rethrown and abort the submission.
@@ -159,23 +159,18 @@ class @Problem
   # In order to use this feature, add a 'data-waitfor' attribute to the input,
   # and specify the function to be called by the check button before sending
   # off @answers
-  check_save_waitfor: (callback) =>
+  check_waitfor: =>
     for inp in @inputs
       if ($(inp).is("input[waitfor]"))
         try
-          $(inp).data("waitfor")(() =>
-            @refreshAnswers()
-            callback()
-          )
+          $(inp).data("waitfor")()
+          @refreshAnswers()
         catch e
           if e.name == "Waitfor Exception"
             alert e.message
           else
             alert "Could not grade your answer. The submission was aborted."
           throw e
-        return true
-      else
-        return false
 
 
   ###
@@ -259,10 +254,7 @@ class @Problem
       $.ajaxWithPrefix("#{@url}/problem_check", settings)
 
   check: =>
-    if not @check_save_waitfor(@check_internal)
-      @check_internal()
-
-  check_internal: =>
+    @check_waitfor()
     Logger.log 'problem_check', @answers
 
     # Segment.io
@@ -308,26 +300,24 @@ class @Problem
         # inputtype functions.
 
         @el.find(".capa_inputtype").each (index, inputtype) =>
-          classes = $(inputtype).attr('class').split(' ')
-          for cls in classes
-            display = @inputtypeDisplays[$(inputtype).attr('id')]
-            showMethod = @inputtypeShowAnswerMethods[cls]
-            showMethod(inputtype, display, answers) if showMethod?
+            classes = $(inputtype).attr('class').split(' ')
+            for cls in classes
+              display = @inputtypeDisplays[$(inputtype).attr('id')]
+              showMethod = @inputtypeShowAnswerMethods[cls]
+              showMethod(inputtype, display, answers) if showMethod?
 
         if MathJax?
           @el.find('.problem > div').each (index, element) =>
             MathJax.Hub.Queue ["Typeset", MathJax.Hub, element]
 
-        `// Translators: the word Answer here refers to the answer to a problem the student must solve.`
-        @$('.show-label').text gettext('Hide Answer(s)')
+        @$('.show-label').text 'Hide Answer(s)'
         @el.addClass 'showed'
         @updateProgress response
     else
       @$('[id^=answer_], [id^=solution_]').text ''
       @$('[correct_answer]').attr correct_answer: null
       @el.removeClass 'showed'
-      `// Translators: the word Answer here refers to the answer to a problem the student must solve.`
-      @$('.show-label').text gettext('Show Answer(s)')
+      @$('.show-label').text 'Show Answer(s)'
 
       @el.find(".capa_inputtype").each (index, inputtype) =>
         display = @inputtypeDisplays[$(inputtype).attr('id')]
@@ -344,10 +334,6 @@ class @Problem
     @el.find('.capa_alert').css(opacity: 0).animate(opacity: 1, 700)
 
   save: =>
-    if not @check_save_waitfor(@save_internal)
-      @save_internal()
-
-  save_internal: =>
     Logger.log 'problem_save', @answers
     $.postWithPrefix "#{@url}/problem_save", @answers, (response) =>
       saveMessage = response.msg
@@ -405,7 +391,6 @@ class @Problem
     formulaequationinput: (element) ->
       $(element).find('input').on 'input', ->
         $p = $(element).find('p.status')
-        `// Translators: the word unanswered here is about answering a problem the student must solve.`
         $p.text gettext("unanswered")
         $p.parent().removeClass().addClass "unanswered"
 
@@ -434,8 +419,7 @@ class @Problem
     textline: (element) ->
       $(element).find('input').on 'input', ->
         $p = $(element).find('p.status')
-        `// Translators: the word unanswered here is about answering a problem the student must solve.`
-        $p.text gettext("unanswered")
+        $p.text "unanswered"
         $p.parent().removeClass().addClass "unanswered"
 
   inputtypeSetupMethods:
@@ -497,82 +481,6 @@ class @Problem
       answer = answers[input_id]
       for choice in answer
         element.find("section#forinput#{choice}").addClass 'choicetextgroup_show_correct'
-
-    imageinput: (element, display, answers) =>
-      # answers is a dict of (answer_id, answer_text) for each answer for this
-      # question.
-      # @Examples:
-      # {'anwser_id': {
-      #   'rectangle': '(10,10)-(20,30);(12,12)-(40,60)',
-      #   'regions': '[[10,10], [30,30], [10, 30], [30, 10]]'
-      # } }
-      types =
-        rectangle: (coords) =>
-          reg = /^\(([0-9]+),([0-9]+)\)-\(([0-9]+),([0-9]+)\)$/
-          rects = coords.replace(/\s*/g, '').split(/;/)
-
-          $.each rects, (index, rect) =>
-            abs = Math.abs
-            points = reg.exec(rect)
-            if points
-              width = abs(points[3] - points[1])
-              height = abs(points[4] - points[2])
-
-              ctx.rect(points[1], points[2], width, height)
-
-          ctx.stroke()
-          ctx.fill()
-
-        regions: (coords) =>
-          parseCoords = (coords) =>
-            reg = JSON.parse(coords)
-
-            # Regions is list of lists [region1, region2, region3, ...] where regionN
-            # is disordered list of points: [[1,1], [100,100], [50,50], [20, 70]].
-            # If there is only one region in the list, simpler notation can be used:
-            # regions="[[10,10], [30,30], [10, 30], [30, 10]]" (without explicitly
-            # setting outer list)
-            if typeof reg[0][0][0] == "undefined"
-              # we have [[1,2],[3,4],[5,6]] - single region
-              # instead of [[[1,2],[3,4],[5,6], [[1,2],[3,4],[5,6]]]
-              # or [[[1,2],[3,4],[5,6]]] - multiple regions syntax
-              reg = [reg]
-
-            return reg
-
-          $.each parseCoords(coords), (index, region) =>
-            ctx.beginPath()
-            $.each region, (index, point) =>
-              if index is 0
-                ctx.moveTo(point[0], point[1])
-              else
-                ctx.lineTo(point[0], point[1]);
-
-            ctx.closePath()
-            ctx.stroke()
-            ctx.fill()
-
-      element = $(element)
-      id = element.attr('id').replace(/inputtype_/,'')
-      container = element.find("#answer_#{id}")
-      canvas = document.createElement('canvas')
-      canvas.width = container.data('width')
-      canvas.height = container.data('height')
-
-      if canvas.getContext
-        ctx = canvas.getContext('2d')
-      else
-        return console.log 'Canvas is not supported.'
-
-      ctx.fillStyle = 'rgba(255,255,255,.3)';
-      ctx.strokeStyle = "#FF0000";
-      ctx.lineWidth = "2";
-
-      $.each answers, (key, answer) =>
-        $.each answer, (key, value) =>
-          types[key](value) if types[key]? and value
-
-      container.html(canvas)
 
   inputtypeHideAnswerMethods:
     choicegroup: (element, display) =>

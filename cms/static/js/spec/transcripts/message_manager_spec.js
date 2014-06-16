@@ -65,8 +65,7 @@ function ($, _, Utils, MessageManager, FileUploader, sinon) {
             });
         });
 
-        // Disabled 2/6/14 after intermittent failure in master
-        xdescribe('Render', function () {
+        describe('Render', function () {
 
             beforeEach(function () {
                 spyOn(_,'template').andCallThrough();

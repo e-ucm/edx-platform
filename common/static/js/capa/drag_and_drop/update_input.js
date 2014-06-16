@@ -1,5 +1,5 @@
 (function (requirejs, require, define) {
-define([], function () {
+define(['js/capa/drag_and_drop/logme'], function (logme) {
     return {
         'check': check,
         'update': update
@@ -187,7 +187,7 @@ define([], function () {
 
         if ((draggable = getById(state, 'draggables', draggableId)) === null) {
             if (reportError !== false) {
-                console.log(
+                logme(
                     'ERROR: In answer there exists a ' +
                     'draggable ID "' + draggableId + '". No ' +
                     'draggable with this ID could be found.'
@@ -199,7 +199,7 @@ define([], function () {
 
         if ((target = getById(state, 'targets', targetId)) === null) {
             if (reportError !== false) {
-                console.log(
+                logme(
                     'ERROR: In answer there exists a target ' +
                     'ID "' + targetId + '". No target with this ' +
                     'ID could be found.'
@@ -225,7 +225,7 @@ define([], function () {
                     }
 
                     if ((draggable = getById(state, 'draggables', draggableId)) === null) {
-                        console.log(
+                        logme(
                             'ERROR: In answer there exists a ' +
                             'draggable ID "' + draggableId + '". No ' +
                             'draggable with this ID could be found.'
@@ -359,5 +359,5 @@ define([], function () {
             return null;
         }(0));
     }
-}); // End-of: define([], function () {
+}); // End-of: define(['logme'], function (logme) {
 }(RequireJS.requirejs, RequireJS.require, RequireJS.define)); // End-of: (function (requirejs, require, define) {

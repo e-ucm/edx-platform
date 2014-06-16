@@ -5,7 +5,6 @@ if Backbone?
       "click .discussion-submit-post": "submitComment"
       "click .expand-post": "expandPost"
       "click .collapse-post": "collapsePost"
-      "click .add-response-btn": "scrollToAddResponse"
 
     initialize: ->
       super()
@@ -33,11 +32,13 @@ if Backbone?
       @renderShowView()
       @renderAttrs()
 
+      # TODO tags commenting out til we decide what to do with tags
+      #@renderTags()
+
       @$("span.timeago").timeago()
       @$el.find('.post-extended-content').hide()
       if @expanded
         @makeWmdEditor "reply-body"
-        @renderAddResponseButton()
         @renderResponses()
       @
     createShowView: () ->
@@ -108,7 +109,6 @@ if Backbone?
       @makeWmdEditor "reply-body"
       @renderAttrs()
       if @$el.find('.loading').length
-        @renderAddResponseButton()
         @renderResponses()
 
     collapsePost: (event) ->

@@ -2,11 +2,9 @@ if Backbone?
   class @DiscussionModuleView extends Backbone.View
     events:
       "click .discussion-show": "toggleDiscussion"
-      "keydown .discussion-show":
-        (event) -> DiscussionUtil.activateOnSpace(event, @toggleDiscussion)
+      "keypress .discussion-show":
+        (event) -> DiscussionUtil.activateOnEnter(event, toggleDiscussion)
       "click .new-post-btn": "toggleNewPost"
-      "keydown .new-post-btn":
-        (event) -> DiscussionUtil.activateOnSpace(event, @toggleNewPost)
       "click .new-post-cancel": "hideNewPost"
       "click .discussion-paginator a": "navigateToPage"
 
@@ -21,7 +19,7 @@ if Backbone?
       else
         @page = 1
 
-    toggleNewPost: (event) =>
+    toggleNewPost: (event) ->
       event.preventDefault()
       if !@newPostForm
         @toggleDiscussion()
@@ -32,7 +30,7 @@ if Backbone?
       else
         @newPostForm.show()
       @toggleDiscussionBtn.addClass('shown')
-      @toggleDiscussionBtn.find('.button-text').html(gettext("Hide Discussion"))
+      @toggleDiscussionBtn.find('.button-text').html("Hide Discussion")
       @$("section.discussion").slideDown()
       @showed = true
 
@@ -40,18 +38,18 @@ if Backbone?
       event.preventDefault()
       @newPostForm.slideUp(300)
 
-    hideDiscussion: =>
+    hideDiscussion: ->
       @$("section.discussion").slideUp()
       @toggleDiscussionBtn.removeClass('shown')
-      @toggleDiscussionBtn.find('.button-text').html(gettext("Show Discussion"))
+      @toggleDiscussionBtn.find('.button-text').html("Show Discussion")
       @showed = false
 
-    toggleDiscussion: (event) =>
+    toggleDiscussion: (event) ->
       if @showed
         @hideDiscussion()
       else
         @toggleDiscussionBtn.addClass('shown')
-        @toggleDiscussionBtn.find('.button-text').html(gettext("Hide Discussion"))
+        @toggleDiscussionBtn.find('.button-text').html("Hide Discussion")
 
         if @retrieved
           @$("section.discussion").slideDown()
@@ -63,8 +61,8 @@ if Backbone?
             =>
               @hideDiscussion()
               DiscussionUtil.discussionAlert(
-                gettext("Sorry"),
-                gettext("We had some trouble loading the discussion. Please try again.")
+                "Sorry",
+                "We had some trouble loading the discussion. Please try again."
               )
           )
 
@@ -156,7 +154,7 @@ if Backbone?
         =>
           @page = currPage
           DiscussionUtil.discussionAlert(
-            gettext("Sorry"),
-            gettext("We had some trouble loading the threads you requested. Please try again.")
+            "Sorry",
+            "We had some trouble loading the threads you requested. Please try again."
           )
       )

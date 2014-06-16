@@ -1,12 +1,12 @@
-define(["js/views/baseview", "js/views/course_info_update", "js/views/course_info_handout"],
-    function(BaseView, CourseInfoUpdateView, CourseInfoHandoutView) {
+define(["backbone", "js/views/course_info_update", "js/views/course_info_handout"],
+    function(Backbone, CourseInfoUpdateView, CourseInfoHandoutView) {
 /*  this view should own everything on the page which has controls effecting its operation
    generate other views for the individual editors.
    The render here adds views for each update/handout by delegating to their collections but does not
    generate any html for the surrounding page.
 */
 
-var CourseInfoEdit = BaseView.extend({
+var CourseInfoEdit = Backbone.View.extend({
   // takes CMS.Models.CourseInfo as model
   tagName: 'div',
 

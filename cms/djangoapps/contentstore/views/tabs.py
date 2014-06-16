@@ -1,7 +1,7 @@
 """
 Views related to course tabs
 """
-from access import has_course_access
+from access import has_access
 from util.json_request import expect_json, JsonResponse
 
 from django.http import HttpResponseNotFound
@@ -35,17 +35,12 @@ def initialize_course_tabs(course):
     # This logic is repeated in xmodule/modulestore/tests/factories.py
     # so if you change anything here, you need to also change it there.
     course.tabs = [
-        # Translators: "Courseware" is the title of the page where you access a course's videos and problems.
         {"type": "courseware", "name": _("Courseware")},
-        # Translators: "Course Info" is the name of the course's information and updates page
         {"type": "course_info", "name": _("Course Info")},
-        # Translators: "Discussion" is the title of the course forum page
         {"type": "discussion", "name": _("Discussion")},
-        # Translators: "Wiki" is the title of the course's wiki page
         {"type": "wiki", "name": _("Wiki")},
-        # Translators: "Progress" is the title of the student's grade information page
         {"type": "progress", "name": _("Progress")},
-    ]
+    ] 
 
     modulestore('direct').update_metadata(course.location.url(), own_metadata(course))
 
@@ -53,7 +48,7 @@ def initialize_course_tabs(course):
 @login_required
 @ensure_csrf_cookie
 @require_http_methods(("GET", "POST", "PUT"))
-def tabs_handler(request, tag=None, package_id=None, branch=None, version_guid=None, block=None):
+def tabs_handler(request, tag=None, course_id=None, branch=None, version_guid=None, block=None):
     """
     The restful handler for static tabs.
 
@@ -67,8 +62,8 @@ def tabs_handler(request, tag=None, package_id=None, branch=None, version_guid=N
     Creating a tab, deleting a tab, or changing its contents is not supported through this method.
     Instead use the general xblock URL (see item.xblock_handler).
     """
-    locator = BlockUsageLocator(package_id=package_id, branch=branch, version_guid=version_guid, block_id=block)
-    if not has_course_access(request.user, locator):
+    locator = BlockUsageLocator(course_id=course_id, branch=branch, version_guid=version_guid, usage_id=block)
+    if not has_access(request.user, locator):
         raise PermissionDenied()
 
     old_location = loc_mapper().translate_locator_to_location(locator)

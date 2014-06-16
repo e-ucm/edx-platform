@@ -24,9 +24,7 @@ from django_comment_client.utils import has_forum_access
 from django_comment_common.models import FORUM_ROLE_ADMINISTRATOR
 from student.models import CourseEnrollment
 from bulk_email.models import CourseAuthorization
-
-
-from .tools import get_units_with_due_date, title_or_url
+from lms.lib.xblock.runtime import handler_prefix
 
 
 @ensure_csrf_cookie
@@ -56,9 +54,6 @@ def instructor_dashboard_2(request, course_id):
         _section_data_download(course_id, access),
         _section_analytics(course_id, access),
     ]
-
-    if (settings.FEATURES.get('INDIVIDUAL_DUE_DATES') and access['instructor']):
-        sections.insert(3, _section_extensions(course))
 
     # Gate access to course email by feature flag & by course-specific authorization
     if settings.FEATURES['ENABLE_INSTRUCTOR_EMAIL'] and \
@@ -114,7 +109,7 @@ def _section_course_info(course_id, access):
         'course_num': course_num,
         'course_name': course_name,
         'course_display_name': course.display_name,
-        'enrollment_count': CourseEnrollment.num_enrolled_in(course_id),
+        'enrollment_count': CourseEnrollment.objects.filter(course_id=course_id, is_active=1).count(),
         'has_started': course.has_started(),
         'has_ended': course.has_ended(),
         'list_instructor_tasks_url': reverse('list_instructor_tasks', kwargs={'course_id': course_id}),
@@ -166,21 +161,6 @@ def _section_student_admin(course_id, access):
     return section_data
 
 
-def _section_extensions(course):
-    """ Provide data for the corresponding dashboard section """
-    section_data = {
-        'section_key': 'extensions',
-        'section_display_name': _('Extensions'),
-        'units_with_due_dates': [(title_or_url(unit), unit.location.url())
-                                 for unit in get_units_with_due_date(course)],
-        'change_due_date_url': reverse('change_due_date', kwargs={'course_id': course.id}),
-        'reset_due_date_url': reverse('reset_due_date', kwargs={'course_id': course.id}),
-        'show_unit_extensions_url': reverse('show_unit_extensions', kwargs={'course_id': course.id}),
-        'show_student_extensions_url': reverse('show_student_extensions', kwargs={'course_id': course.id}),
-    }
-    return section_data
-
-
 def _section_data_download(course_id, access):
     """ Provide data for the corresponding dashboard section """
     section_data = {
@@ -205,7 +185,7 @@ def _section_send_email(course_id, access, course):
         ScopeIds(None, None, None, 'i4x://dummy_org/dummy_course/html/dummy_name')
     )
     fragment = course.system.render(html_module, 'studio_view')
-    fragment = wrap_xblock('LmsRuntime', html_module, 'studio_view', fragment, None, extra_data={"course-id": course_id})
+    fragment = wrap_xblock(partial(handler_prefix, course_id), html_module, 'studio_view', fragment, None)
     email_editor = fragment.content
     section_data = {
         'section_key': 'send_email',

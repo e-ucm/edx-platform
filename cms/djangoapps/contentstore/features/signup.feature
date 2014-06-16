@@ -1,4 +1,4 @@
-@shard_2
+@shard_3
 Feature: CMS.Sign in
   In order to use the edX content
   As a new user

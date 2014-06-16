@@ -71,15 +71,10 @@ class OpenEndedModule(openendedchild.OpenEndedChild):
 
         self._parse(oeparam, self.child_prompt, self.child_rubric, system)
 
-        # If there are multiple tasks (like self-assessment followed by ai), once
-        # the the status of the first task is set to DONE, setup_next_task() will
-        # create the OpenEndedChild with parameter child_created=True so that the
-        # submission can be sent to the grader. Keep trying each time this module
-        # is loaded until it succeeds.
         if self.child_created is True and self.child_state == self.ASSESSING:
-            success, message = self.send_to_grader(self.latest_answer(), system)
-            if success:
-                self.child_created = False
+            self.child_created = False
+            self.send_to_grader(self.latest_answer(), system)
+            self.child_created = False
 
     def _parse(self, oeparam, prompt, rubric, system):
         '''
@@ -201,25 +196,20 @@ class OpenEndedModule(openendedchild.OpenEndedChild):
             'student_info': json.dumps(student_info),
         }
 
-        error, error_message = qinterface.send_to_queue(
+        (error, msg) = qinterface.send_to_queue(
             header=xheader,
             body=json.dumps(contents)
         )
 
         # Convert error to a success value
         success = True
-        message = "Successfully saved your feedback."
         if error:
             success = False
-            message = "Unable to save your feedback. Please try again later."
-            log.error("Unable to send feedback to grader. location: {0}, error_message: {1}".format(
-                self.location_string, error_message
-            ))
-        else:
-            self.child_state = self.DONE
+
+        self.child_state = self.DONE
 
         # This is a student_facing_message
-        return {'success': success, 'msg': message}
+        return {'success': success, 'msg': "Successfully submitted your feedback."}
 
     def send_to_grader(self, submission, system):
         """
@@ -267,7 +257,7 @@ class OpenEndedModule(openendedchild.OpenEndedChild):
         })
 
         # Submit request. When successful, 'msg' is the prior length of the queue
-        error, error_message = qinterface.send_to_queue(
+        qinterface.send_to_queue(
             header=xheader,
             body=json.dumps(contents)
         )
@@ -277,17 +267,7 @@ class OpenEndedModule(openendedchild.OpenEndedChild):
             'key': queuekey,
             'time': qtime,
         }
-
-        success = True
-        message = "Successfully saved your submission."
-        if error:
-            success = False
-            message = 'Unable to submit your submission to grader. Please try again later.'
-            log.error("Unable to submit to grader. location: {0}, error_message: {1}".format(
-                self.location_string, error_message
-            ))
-
-        return (success, message)
+        return True
 
     def _update_score(self, score_msg, queuekey, system):
         """
@@ -523,9 +503,6 @@ class OpenEndedModule(openendedchild.OpenEndedChild):
             fail['feedback'] = error_message
             return fail
 
-        if not score_result:
-            return fail
-
         for tag in ['score', 'feedback', 'grader_type', 'success', 'grader_id', 'submission_id']:
             if tag not in score_result:
                 # This is a dev_facing_error
@@ -609,7 +586,7 @@ class OpenEndedModule(openendedchild.OpenEndedChild):
             return ""
 
         feedback_dict = self._parse_score_msg(
-            self.child_history[-1].get('post_assessment', "{}"),
+            self.child_history[-1].get('post_assessment', ""),
             system,
             join_feedback=join_feedback
         )
@@ -691,27 +668,18 @@ class OpenEndedModule(openendedchild.OpenEndedChild):
         if self.child_state != self.INITIAL:
             return self.out_of_sync_error(data)
 
-        message = "Successfully saved your submission."
-
         # add new history element with answer and empty score and hint.
         success, error_message, data = self.append_file_link_to_student_answer(data)
-        if not success:
-            message = error_message
-        else:
+        if success:
             data['student_answer'] = OpenEndedModule.sanitize_html(data['student_answer'])
-            success, error_message = self.send_to_grader(data['student_answer'], system)
-            if not success:
-                message = error_message
-                # Store the answer instead
-                self.store_answer(data, system)
-            else:
-                self.new_history_entry(data['student_answer'])
-                self.change_state(self.ASSESSING)
+            self.new_history_entry(data['student_answer'])
+            self.send_to_grader(data['student_answer'], system)
+            self.change_state(self.ASSESSING)
 
         return {
             'success': success,
-            'error': message,
-            'student_response': data['student_answer'].replace("\n", "<br/>")
+            'error': error_message,
+            'student_response': data['student_answer'].replace("\n","<br/>")
         }
 
     def update_score(self, data, system):
@@ -770,44 +738,6 @@ class OpenEndedModule(openendedchild.OpenEndedChild):
         html = system.render_template('{0}/open_ended.html'.format(self.TEMPLATE_DIR), context)
         return html
 
-    def latest_score(self):
-        """None if not available"""
-        if not self.child_history:
-            return None
-        return self.score_for_attempt(-1)
-
-    def all_scores(self):
-        """None if not available"""
-        if not self.child_history:
-            return None
-        return [self.score_for_attempt(index) for index in xrange(0, len(self.child_history))]
-
-    def score_for_attempt(self, index):
-        """
-        Return sum of rubric scores for ML grading otherwise return attempt["score"].
-        """
-        attempt = self.child_history[index]
-        score = attempt.get('score')
-        post_assessment_data = self._parse_score_msg(attempt.get('post_assessment', "{}"), self.system)
-        grader_types = post_assessment_data.get('grader_types')
-
-        # According to _parse_score_msg in ML grading there should be only one grader type.
-        if len(grader_types) == 1 and grader_types[0] == 'ML':
-            rubric_scores = post_assessment_data.get("rubric_scores")
-
-            # Similarly there should be only one list of rubric scores.
-            if len(rubric_scores) == 1:
-                rubric_scores_sum = sum(rubric_scores[0])
-                log.debug("""Score normalized for location={loc}, old_score={old_score},
-                new_score={new_score}, rubric_score={rubric_score}""".format(
-                    loc=self.location_string,
-                    old_score=score,
-                    new_score=rubric_scores_sum,
-                    rubric_score=rubric_scores
-                ))
-                return rubric_scores_sum
-        return score
-
 
 class OpenEndedDescriptor():
     """
@@ -836,7 +766,7 @@ class OpenEndedDescriptor():
             if len(xml_object.xpath(child)) != 1:
                 # This is a staff_facing_error
                 raise ValueError(
-                    u"Open Ended definition must include exactly one '{0}' tag. Contact the learning sciences group for assistance.".format(
+                    "Open Ended definition must include exactly one '{0}' tag. Contact the learning sciences group for assistance.".format(
                         child))
 
         def parse(k):
@@ -852,7 +782,7 @@ class OpenEndedDescriptor():
         elt = etree.Element('openended')
 
         def add_child(k):
-            child_str = u'<{tag}>{body}</{tag}>'.format(tag=k, body=self.definition[k])
+            child_str = '<{tag}>{body}</{tag}>'.format(tag=k, body=self.definition[k])
             child_node = etree.fromstring(child_str)
             elt.append(child_node)
 

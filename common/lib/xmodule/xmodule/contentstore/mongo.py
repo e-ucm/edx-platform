@@ -1,4 +1,4 @@
-import pymongo
+from pymongo import Connection
 import gridfs
 from gridfs.errors import NoFile
 
@@ -24,14 +24,8 @@ class MongoContentStore(ContentStore):
         :param collection: ignores but provided for consistency w/ other doc_store_config patterns
         """
         logging.debug('Using MongoDB for static content serving at host={0} db={1}'.format(host, db))
-        _db = pymongo.database.Database(
-            pymongo.MongoClient(
-                host=host,
-                port=port,
-                **kwargs
-            ),
-            db
-        )
+
+        _db = Connection(host=host, port=port, **kwargs)[db]
 
         if user is not None and password is not None:
             _db.authenticate(user, password)
@@ -100,7 +94,7 @@ class MongoContentStore(ContentStore):
     def close_stream(self, handle):
         try:
             handle.close()
-        except Exception:
+        except:
             pass
 
     def export(self, location, output_directory):
@@ -128,7 +122,7 @@ class MongoContentStore(ContentStore):
         directory as the other policy files.
         """
         policy = {}
-        assets, __ = self.get_all_content_for_course(course_location)
+        assets = self.get_all_content_for_course(course_location)
 
         for asset in assets:
             asset_location = Location(asset['_id'])
@@ -141,7 +135,7 @@ class MongoContentStore(ContentStore):
             json.dump(policy, f)
 
     def get_all_content_thumbnails_for_course(self, location):
-        return self._get_all_content_for_course(location, get_thumbnails=True)[0]
+        return self._get_all_content_for_course(location, get_thumbnails=True)
 
     def get_all_content_for_course(self, location, start=0, maxresults=-1, sort=None):
         return self._get_all_content_for_course(
@@ -178,8 +172,7 @@ class MongoContentStore(ContentStore):
             )
         else:
             items = self.fs_files.find(location_to_query(course_filter), sort=sort)
-        count = items.count()
-        return list(items), count
+        return list(items)
 
     def set_attr(self, location, attr, value=True):
         """

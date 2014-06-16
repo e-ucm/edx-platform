@@ -153,14 +153,12 @@ def ajax_status(request):
 
 
 @require_GET
-def set_subscription(request, token, subscribe):  # pylint: disable=unused-argument
+def unsubscribe(request, token):
     """
-    A view that disables or re-enables notifications for a user who may not be authenticated
+    A view that disables notifications for a user who may not be authenticated
 
     This view is meant to be the target of an unsubscribe link. The request
     must be a GET, and the `token` parameter must decrypt to a valid username.
-    The subscribe flag feature controls whether the view subscribes or unsubscribes the user, with subscribe=True
-    used to "undo" accidentally clicking on the unsubscribe link
 
     A 405 will be returned if the request method is not GET. A 404 will be
     returned if the token parameter does not decrypt to a valid username. On
@@ -176,13 +174,6 @@ def set_subscription(request, token, subscribe):  # pylint: disable=unused-argum
     except User.DoesNotExist:
         raise Http404("username")
 
-    if subscribe:
-        UserPreference.objects.get_or_create(user=user,
-                                             key=NOTIFICATION_PREF_KEY,
-                                             defaults={
-                                                 "value": UsernameCipher.encrypt(user.username)
-                                             })
-        return render_to_response("resubscribe.html", {'token': token})
-    else:
-        UserPreference.objects.filter(user=user, key=NOTIFICATION_PREF_KEY).delete()
-        return render_to_response("unsubscribe.html", {'token': token})
+    UserPreference.objects.filter(user=user, key=NOTIFICATION_PREF_KEY).delete()
+
+    return render_to_response("unsubscribe.html", {})

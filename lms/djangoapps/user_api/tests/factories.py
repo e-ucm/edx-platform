@@ -1,4 +1,4 @@
-from factory.django import DjangoModelFactory
+from factory import DjangoModelFactory
 from user_api.models import UserPreference
 
 

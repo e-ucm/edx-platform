@@ -2,7 +2,7 @@
 // define() functions from Require JS available inside the anonymous function.
 (function (requirejs, require, define) {
 
-define('State', [], function () {
+define('State', ['logme'], function (logme) {
     var stateInst;
 
     // Since there will be (can be) multiple GST on a page, and each will have
@@ -24,7 +24,7 @@ define('State', [], function () {
         dynamicElByElId = {};
 
         stateInst += 1;
-        // console.log('MESSAGE: Creating state instance # ' + stateInst + '.');
+        // logme('MESSAGE: Creating state instance # ' + stateInst + '.');
 
         // Initially, there are no parameters to track. So, we will instantiate
         // an empty object.
@@ -39,8 +39,8 @@ define('State', [], function () {
 
         // Check that the required parameters config object is available.
         if ($.isPlainObject(config.parameters) === false) {
-            console.log('ERROR: Expected config.parameters to be an object. It is not.');
-            console.log('config.parameters = ', config.parameters);
+            logme('ERROR: Expected config.parameters to be an object. It is not.');
+            logme('config.parameters = ', config.parameters);
 
             return;
         }
@@ -65,8 +65,8 @@ define('State', [], function () {
         // If config.parameters.param is some other type, report an error and
         // do not continue.
         else {
-            console.log('ERROR: config.parameters.param is of an unsupported type.');
-            console.log('config.parameters.param = ', config.parameters.param);
+            logme('ERROR: config.parameters.param is of an unsupported type.');
+            logme('config.parameters.param = ', config.parameters.param);
 
             return;
         }
@@ -112,7 +112,7 @@ define('State', [], function () {
 
         function getParamObj(paramName) {
             if (parameters.hasOwnProperty(paramName) === false) {
-                console.log('ERROR: Object parameters does not have a property named "' + paramName + '".');
+                logme('ERROR: Object parameters does not have a property named "' + paramName + '".');
 
                 return;
             }
@@ -137,7 +137,7 @@ define('State', [], function () {
             });
 
             if (typeof dynamicElByElId[elId] !== 'undefined') {
-                console.log(
+                logme(
                     'ERROR: Duplicate dynamic element ID "' + elId + '" found.'
                 );
             } else {
@@ -150,7 +150,7 @@ define('State', [], function () {
             // If the name of the constant is not tracked by state, return an
             // 'undefined' value.
             if (parameters.hasOwnProperty(paramName) === false) {
-                console.log('ERROR: Object parameters does not have a property named "' + paramName + '".');
+                logme('ERROR: Object parameters does not have a property named "' + paramName + '".');
 
                 return;
             }
@@ -197,7 +197,7 @@ define('State', [], function () {
             // If a parameter with the name specified by the 'paramName'
             // parameter is not tracked by state, do not do anything.
             if (parameters.hasOwnProperty(paramName) === false) {
-                console.log('ERROR: Object parameters does not have a property named "' + paramName + '".');
+                logme('ERROR: Object parameters does not have a property named "' + paramName + '".');
 
                 return;
             }
@@ -209,8 +209,8 @@ define('State', [], function () {
             // We are interested only in valid float values. NaN, -INF,
             // +INF we will disregard.
             if (isFinite(paramValueNum) === false) {
-                console.log('ERROR: New parameter value is not a floating-point number.');
-                console.log('paramValue = ', paramValue);
+                logme('ERROR: New parameter value is not a floating-point number.');
+                logme('paramValue = ', paramValue);
 
                 return;
             }
@@ -299,8 +299,8 @@ define('State', [], function () {
             var paramName, newParamObj;
 
             if (typeof obj['@var'] !== 'string') {
-                console.log('ERROR: Expected obj["@var"] to be a string. It is not.');
-                console.log('obj["@var"] = ', obj['@var']);
+                logme('ERROR: Expected obj["@var"] to be a string. It is not.');
+                logme('obj["@var"] = ', obj['@var']);
 
                 return;
             }
@@ -314,7 +314,7 @@ define('State', [], function () {
                 (processFloat('@step', 'step') === false) ||
                 (processFloat('@initial', 'value') === false)
             ) {
-                console.log('ERROR: A required property is missing. Not creating parameter "' + paramName + '"');
+                logme('ERROR: A required property is missing. Not creating parameter "' + paramName + '"');
 
                 return;
             }
@@ -335,16 +335,16 @@ define('State', [], function () {
                 var attrValue;
 
                 if (typeof obj[attrName] !== 'string') {
-                    console.log('ERROR: Expected obj["' + attrName + '"] to be a string. It is not.');
-                    console.log('obj["' + attrName + '"] = ', obj[attrName]);
+                    logme('ERROR: Expected obj["' + attrName + '"] to be a string. It is not.');
+                    logme('obj["' + attrName + '"] = ', obj[attrName]);
 
                     return false;
                 } else {
                     attrValue = parseFloat(obj[attrName]);
 
                     if (isFinite(attrValue) === false) {
-                        console.log('ERROR: Expected obj["' + attrName + '"] to be a valid floating-point number. It is not.');
-                        console.log('obj["' + attrName + '"] = ', obj[attrName]);
+                        logme('ERROR: Expected obj["' + attrName + '"] to be a valid floating-point number. It is not.');
+                        logme('obj["' + attrName + '"] = ', obj[attrName]);
 
                         return false;
                     }

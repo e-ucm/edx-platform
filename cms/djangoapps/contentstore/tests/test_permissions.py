@@ -1,8 +1,6 @@
 """
 Test CRUD for authorization.
 """
-import copy
-
 from django.test.utils import override_settings
 from django.contrib.auth.models import User, Group
 
@@ -11,9 +9,10 @@ from contentstore.tests.modulestore_config import TEST_MODULESTORE
 from contentstore.tests.utils import AjaxEnabledTestClient
 from xmodule.modulestore.django import loc_mapper
 from xmodule.modulestore import Location
-from student.roles import CourseInstructorRole, CourseStaffRole
-from contentstore.views.access import has_course_access
-from student import auth
+from auth.authz import INSTRUCTOR_ROLE_NAME, STAFF_ROLE_NAME
+from auth import authz
+import copy
+from contentstore.views.access import has_access
 
 
 @override_settings(MODULESTORE=TEST_MODULESTORE)
@@ -88,35 +87,30 @@ class TestCourseAccess(ModuleStoreTestCase):
         Test getting all authors for a course where their permissions run the gamut of allowed group
         types.
         """
-        # first check the course creator.has explicit access (don't use has_access as is_staff
-        # will trump the actual test)
+        # first check the groupname for the course creator.
         self.assertTrue(
-            CourseInstructorRole(self.course_locator).has_user(self.user),
+            self.user.groups.filter(
+                name="{}_{}".format(INSTRUCTOR_ROLE_NAME, self.course_locator.course_id)
+            ).exists(),
             "Didn't add creator as instructor."
         )
         users = copy.copy(self.users)
-        # doesn't use role.users_with_role b/c it's verifying the roles.py behavior
         user_by_role = {}
         # add the misc users to the course in different groups
-        for role in [CourseInstructorRole, CourseStaffRole]:
+        for role in [INSTRUCTOR_ROLE_NAME, STAFF_ROLE_NAME]:
             user_by_role[role] = []
-            # pylint: disable=protected-access
-            groupnames = role(self.course_locator)._group_names
-            self.assertGreater(len(groupnames), 1, "Only 0 or 1 groupname for {}".format(role.ROLE))
-            # NOTE: this loop breaks the roles.py abstraction by purposely assigning
-            # users to one of each possible groupname in order to test that has_course_access
-            # and remove_user work
+            groupnames, _ = authz.get_all_course_role_groupnames(self.course_locator, role)
             for groupname in groupnames:
                 group, _ = Group.objects.get_or_create(name=groupname)
                 user = users.pop()
                 user_by_role[role].append(user)
                 user.groups.add(group)
                 user.save()
-                self.assertTrue(has_course_access(user, self.course_locator), "{} does not have access".format(user))
-                self.assertTrue(has_course_access(user, self.course_location), "{} does not have access".format(user))
+                self.assertTrue(has_access(user, self.course_locator), "{} does not have access".format(user))
+                self.assertTrue(has_access(user, self.course_location), "{} does not have access".format(user))
 
         response = self.client.get_html(self.course_locator.url_reverse('course_team'))
-        for role in [CourseInstructorRole, CourseStaffRole]:
+        for role in [INSTRUCTOR_ROLE_NAME, STAFF_ROLE_NAME]:
             for user in user_by_role[role]:
                 self.assertContains(response, user.email)
         
@@ -125,23 +119,9 @@ class TestCourseAccess(ModuleStoreTestCase):
         copy_course_locator = loc_mapper().translate_location(
             copy_course_location.course_id, copy_course_location, False, True
         )
-        for role in [CourseInstructorRole, CourseStaffRole]:
-            auth.add_users(
-                self.user,
-                role(copy_course_locator),
-                *role(self.course_locator).users_with_role()
-            )
-        # verify access in copy course and verify that removal from source course w/ the various
-        # groupnames works
-        for role in [CourseInstructorRole, CourseStaffRole]:
+        # pylint: disable=protected-access
+        authz._copy_course_group(self.course_locator, copy_course_locator)
+        for role in [INSTRUCTOR_ROLE_NAME, STAFF_ROLE_NAME]:
             for user in user_by_role[role]:
-                # forcefully decache the groups: premise is that any real request will not have
-                # multiple objects repr the same user but this test somehow uses different instance
-                # in above add_users call
-                if hasattr(user, '_groups'):
-                    del user._groups
-
-                self.assertTrue(has_course_access(user, copy_course_locator), "{} no copy access".format(user))
-                self.assertTrue(has_course_access(user, copy_course_location), "{} no copy access".format(user))
-                auth.remove_users(self.user, role(self.course_locator), user)
-                self.assertFalse(has_course_access(user, self.course_locator), "{} remove didn't work".format(user))
+                self.assertTrue(has_access(user, copy_course_locator), "{} no copy access".format(user))
+                self.assertTrue(has_access(user, copy_course_location), "{} no copy access".format(user))

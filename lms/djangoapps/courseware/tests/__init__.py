@@ -15,6 +15,7 @@ from edxmako.shortcuts import render_to_string
 from student.tests.factories import UserFactory, CourseEnrollmentFactory
 from courseware.tests.modulestore_config import TEST_DATA_MIXED_MODULESTORE
 from xblock.field_data import DictFieldData
+from xblock.fields import Scope
 from xmodule.tests import get_test_system, get_test_descriptor_system
 from xmodule.modulestore import Location
 from xmodule.modulestore.django import modulestore
@@ -34,7 +35,7 @@ class BaseTestXmodule(ModuleStoreTestCase):
 
     Any xmodule should overwrite only next parameters for test:
         1. CATEGORY
-        2. DATA or METADATA
+        2. DATA
         3. MODEL_DATA
         4. COURSE_DATA and USER_COUNT if needed
 
@@ -47,10 +48,6 @@ class BaseTestXmodule(ModuleStoreTestCase):
     # Data from YAML common/lib/xmodule/xmodule/templates/NAME/default.yaml
     CATEGORY = "vertical"
     DATA = ''
-    # METADATA must be overwritten for every instance that uses it. Otherwise,
-    # if we'll change it in the tests, it will be changed for all other instances
-    # of parent class.
-    METADATA = {}
     MODEL_DATA = {'data': '<some_module></some_module>'}
 
     def new_module_runtime(self):
@@ -74,27 +71,8 @@ class BaseTestXmodule(ModuleStoreTestCase):
         runtime.get_block = modulestore().get_item
         return runtime
 
-    def initialize_module(self, **kwargs):
-        kwargs.update({
-            'parent_location': self.section.location,
-            'category': self.CATEGORY
-        })
+    def setUp(self):
 
-        self.item_descriptor = ItemFactory.create(**kwargs)
-
-        self.runtime = self.new_descriptor_runtime()
-
-        field_data = {}
-        field_data.update(self.MODEL_DATA)
-        student_data = DictFieldData(field_data)
-        self.item_descriptor._field_data = LmsFieldData(self.item_descriptor._field_data, student_data)
-
-        self.item_descriptor.xmodule_runtime = self.new_module_runtime()
-        self.item_module = self.item_descriptor
-
-        self.item_url = Location(self.item_module.location).url()
-
-    def setup_course(self):
         self.course = CourseFactory.create(data=self.COURSE_DATA)
 
         # Turn off cache.
@@ -105,7 +83,7 @@ class BaseTestXmodule(ModuleStoreTestCase):
             parent_location=self.course.location,
             category="sequential",
         )
-        self.section = ItemFactory.create(
+        section = ItemFactory.create(
             parent_location=chapter.location,
             category="sequential"
         )
@@ -119,6 +97,24 @@ class BaseTestXmodule(ModuleStoreTestCase):
         for user in self.users:
             CourseEnrollmentFactory.create(user=user, course_id=self.course.id)
 
+        self.item_descriptor = ItemFactory.create(
+            parent_location=section.location,
+            category=self.CATEGORY,
+            data=self.DATA
+        )
+
+        self.runtime = self.new_descriptor_runtime()
+
+        field_data = {}
+        field_data.update(self.MODEL_DATA)
+        student_data = DictFieldData(field_data)
+        self.item_descriptor._field_data = LmsFieldData(self.item_descriptor._field_data, student_data)
+
+        self.item_descriptor.xmodule_runtime = self.new_module_runtime()
+        self.item_module = self.item_descriptor
+
+        self.item_url = Location(self.item_module.location).url()
+
         # login all users for acces to Xmodule
         self.clients = {user.username: Client() for user in self.users}
         self.login_statuses = [
@@ -128,10 +124,6 @@ class BaseTestXmodule(ModuleStoreTestCase):
         ]
 
         self.assertTrue(all(self.login_statuses))
-
-    def setUp(self):
-        self.setup_course();
-        self.initialize_module(metadata=self.METADATA, data=self.DATA)
 
     def get_url(self, dispatch):
         """Return item url with dispatch."""

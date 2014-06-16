@@ -20,7 +20,7 @@ log = logging.getLogger('edx.' + __name__)
 
 class ConditionalFields(object):
     has_children = True
-    show_tag_list = List(help="List of urls of children that are references to external modules", scope=Scope.content)
+    show_tag_list = List(help="Poll answers", scope=Scope.content)
 
 
 class ConditionalModule(ConditionalFields, XModule):
@@ -96,11 +96,7 @@ class ConditionalModule(ConditionalFields, XModule):
             xml_value = self.descriptor.xml_attributes.get(xml_attr)
             if xml_value:
                 return xml_value, attr_name
-        raise Exception(
-            'Error in conditional module: no known conditional found in {!r}'.format(
-                self.descriptor.xml_attributes.keys()
-            )
-        )
+        raise Exception('Error in conditional module: unknown condition "%s"' % xml_attr)
 
     @lazy
     def required_modules(self):
@@ -196,7 +192,6 @@ class ConditionalDescriptor(ConditionalFields, SequenceDescriptor):
             locations = [location.strip() for location in sources.split(';')]
             for location in locations:
                 if Location.is_valid(location):  # Check valid location url.
-                    location = Location(location)
                     try:
                         if return_descriptor:
                             descriptor = system.load_item(location)
@@ -222,13 +217,15 @@ class ConditionalDescriptor(ConditionalFields, SequenceDescriptor):
         show_tag_list = []
         for child in xml_object:
             if child.tag == 'show':
-                locations = ConditionalDescriptor.parse_sources(child, system)
-                children.extend(locations)
-                show_tag_list.extend(location.url() for location in locations)  # pylint: disable=no-member
+                location = ConditionalDescriptor.parse_sources(
+                    child, system)
+                children.extend(location)
+                show_tag_list.extend(location)
             else:
                 try:
                     descriptor = system.process_xml(etree.tostring(child))
-                    children.append(descriptor.scope_ids.usage_id)
+                    module_url = descriptor.location.url()
+                    children.append(module_url)
                 except:
                     msg = "Unable to load child when parsing Conditional."
                     log.exception(msg)
@@ -240,9 +237,10 @@ class ConditionalDescriptor(ConditionalFields, SequenceDescriptor):
         for child in self.get_children():
             location = str(child.location)
             if location in self.show_tag_list:
-                show_str = u'<{tag_name} sources="{sources}" />'.format(
+                show_str = '<{tag_name} sources="{sources}" />'.format(
                     tag_name='show', sources=location)
                 xml_object.append(etree.fromstring(show_str))
             else:
-                self.runtime.add_block_as_child_node(child, xml_object)
+                xml_object.append(
+                    etree.fromstring(child.export_to_xml(resource_fs)))
         return xml_object

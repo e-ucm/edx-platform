@@ -3,7 +3,7 @@ $ ->
     window.$$contents = {}
   $.fn.extend
     loading: (takeFocus) ->
-      @$_loading = $("<div class='loading-animation' tabindex='0'><span class='sr'>" + gettext("Loading content") + "</span></div>")
+      @$_loading = $("<div class='loading-animation' tabindex='0'><span class='sr'>Loading content</span></div>")
       $(this).after(@$_loading)
       if takeFocus
         DiscussionUtil.makeFocusTrap(@$_loading)
@@ -75,8 +75,10 @@ class @DiscussionUtil
       undo_vote_for_comment   : "/courses/#{$$course_id}/discussion/comments/#{param}/unvote"
       upload                  : "/courses/#{$$course_id}/discussion/upload"
       search                  : "/courses/#{$$course_id}/discussion/forum/search"
+      tags_autocomplete       : "/courses/#{$$course_id}/discussion/threads/tags/autocomplete"
       retrieve_discussion     : "/courses/#{$$course_id}/discussion/forum/#{param}/inline"
       retrieve_single_thread  : "/courses/#{$$course_id}/discussion/forum/#{param}/threads/#{param1}"
+      update_moderator_status : "/courses/#{$$course_id}/discussion/users/#{param}/update_moderator_status"
       openclose_thread        : "/courses/#{$$course_id}/discussion/threads/#{param}/close"
       permanent_link_thread   : "/courses/#{$$course_id}/discussion/forum/#{param}/threads/#{param1}"
       permanent_link_comment  : "/courses/#{$$course_id}/discussion/forum/#{param}/threads/#{param1}##{param2}"
@@ -85,12 +87,12 @@ class @DiscussionUtil
       threads                 : "/courses/#{$$course_id}/discussion/forum"
       "enable_notifications"  : "/notification_prefs/enable/"
       "disable_notifications" : "/notification_prefs/disable/"
-      "notifications_status" : "/notification_prefs/status/"
+      "notifications_status" : "/notification_prefs/status"
     }[name]
 
-  @activateOnSpace: (event, func) ->
-    if event.which == 32
-      event.preventDefault()
+  @activateOnEnter: (event, func) ->
+    if event.which == 13
+      e.preventDefault()
       func(event)
 
   @makeFocusTrap: (elem) ->
@@ -109,7 +111,7 @@ class @DiscussionUtil
         "  <header><h2/><hr/></header>" +
         "  <p id='discussion-alert-message'/>" +
         "  <hr/>" +
-        "  <button class='dismiss'>" + gettext("OK") + "</button>" +
+        "  <button class='dismiss'>OK</button>" +
         "</div>"
       )
       @makeFocusTrap(alertDiv.find("button"))
@@ -137,8 +139,9 @@ class @DiscussionUtil
     if !params["error"]
       params["error"] = =>
         @discussionAlert(
-          gettext("Sorry"),
-          gettext("We had some trouble processing your request. Please ensure you have copied any unsaved work and then reload the page.")
+          "Sorry",
+          "We had some trouble processing your request. Please ensure you" +
+          " have copied any unsaved work and then reload the page."
         )
     request = $.ajax(params).always ->
       if $elem
@@ -154,6 +157,20 @@ class @DiscussionUtil
     for eventSelector, handler of eventsHandler
       [event, selector] = eventSelector.split(' ')
       $local(selector).unbind(event)[event] handler
+
+  @processTag: (text) ->
+    text.toLowerCase()
+
+  @tagsInputOptions: ->
+    autocomplete_url: @urlFor('tags_autocomplete')
+    autocomplete:
+      remoteDataType: 'json'
+    interactive: true
+    height: '30px'
+    width: '100%'
+    defaultText: "Tag your post: press enter after each tag"
+    removeWithBackspace: true
+    preprocessTag: @processTag
 
   @formErrorHandler: (errorsField) ->
     (xhr, textStatus, error) ->
@@ -289,5 +306,5 @@ class @DiscussionUtil
     else
       while minLength < text.length && text[minLength] != ' '
         minLength++
-      return text.substr(0, minLength) + gettext('…')
+      return text.substr(0, minLength) + '...'
 

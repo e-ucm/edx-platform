@@ -76,10 +76,6 @@ $paleYellow: #fffcf1;
     text-decoration: none;
   }
 
-  .content-wrapper {
-    background: $body-bg;
-  }
-
   .main-wrapper {
     width: 942px;
     margin: auto;
@@ -187,13 +183,6 @@ $paleYellow: #fffcf1;
 
     .inner-wrapper {
       border-radius: 3px;
-    }
-  }
-
-  #password-reset {
-    header {
-      background: none;
-      border-bottom: none;
     }
   }
 
