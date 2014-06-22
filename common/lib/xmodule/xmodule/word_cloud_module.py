@@ -69,6 +69,11 @@ class WordCloudFields(object):
         scope=Scope.user_state,
         default=[]
     )
+    student_answer = List(
+        help="Student answer.",
+        scope=Scope.user_state_summary,
+        default=[]
+    )
     all_words = Dict(
         help="All possible words from all students.",
         scope=Scope.user_state_summary
@@ -193,10 +198,16 @@ class WordCloudModule(WordCloudFields, XModule):
 
             # Student words from client.
             # FIXME: we must use raw JSON, not a post data (multipart/form-data)
+            raw_student_answer = data.getall('student_answer[]')
+            student_answer = filter(None, map(self.good_word, raw_student_answer))
+
+            self.student_answer = student_answer
+		
             raw_student_words = data.getall('student_words[]')
             student_words = filter(None, map(self.good_word, raw_student_words))
 
             self.student_words = student_words
+
 
             # FIXME: fix this, when xblock will support mutable types.
             # Now we use this hack.
@@ -217,6 +228,9 @@ class WordCloudModule(WordCloudFields, XModule):
 
             # Save all_words in database.
             self.all_words = temp_all_words
+
+
+	
 
             return self.get_state()
         elif dispatch == 'get_state':
