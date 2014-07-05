@@ -1,0 +1,50 @@
+---
+metadata:
+    display_name: Minigame
+    markdown: !!null
+data: |
+      <problem display_name="Catcha">
+      <script type="loncapa/python">
+      import json
+      def check(e, ans):
+        
+        par = json.loads(ans)
+        # We can use either the value of the answer key to grade
+        answer = json.loads(par["answer"])
+        state = json.loads(par["state"])
+        mensaje=""
+        for k in range(len(answer["informe"])):
+             mensaje+= answer["informe"][k] +" | "
+
+         
+
+
+
+        return {'imagenes': [
+                        { 'ok': answer["img1"]},
+                        { 'ok': not answer["img2"]},
+                        { 'ok': not answer["img3"]},
+                        { 'ok': not answer["img4"]},
+                        { 'ok': answer["img5"]},
+                        { 'ok': not answer["img6"]},],
+                    'mensajes': [
+                        { 'msg': mensaje}],
+                    'tiempo':{'tiemp':answer["total"]}
+                     }
+
+      </script>
+      <p>
+      Please select all the cats who appear in the next images.
+      *When the imagen is selected a green square appears.
+      </p>
+
+      <minigameresponse cfn="check">
+        <jsinput gradefn="CatCha.getGrade"
+          get_statefn="CatCha.getState"
+          set_statefn="CatCha.setState"
+          width="400"
+          height="400"
+          html_file="http://minigame.co.nf/catcha/catcha.html"
+          sop="false"/>
+      </minigameresponse>
+      </problem>

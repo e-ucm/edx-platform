@@ -117,7 +117,20 @@ class StudentModuleHistory(models.Model):
                                                  grade=instance.grade,
                                                  max_grade=instance.max_grade)
             history_entry.save()
+class XModuleMinigame(models.Model):
+   
 
+    tagline = models.TextField(default='null')
+
+
+    def __repr__(self):
+        return 'XModuleMinigame<%r>' % ({
+
+            'tagline': self.tagline,
+        },)
+
+    def __unicode__(self):
+        return unicode(repr(self))
 
 class XModuleUserStateSummaryField(models.Model):
     """
